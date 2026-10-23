@@ -38,3 +38,10 @@ updates:
       day: monday
     commit-message:
       prefix: build
+    ignore:
+      # The gateway targets Java 21 LTS. Only patch-level image refreshes are wanted here;
+      # moving to a newer JDK is a deliberate change, not a Dependabot bump.
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "maven"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
