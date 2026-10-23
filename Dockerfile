@@ -7,7 +7,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -q -DskipTests -Djacoco.skip=true package \
  && java -Djarmode=tools -jar target/rag-eval-gateway-*.jar extract --destination /app
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 RUN groupadd --system --gid 10001 gateway \
  && useradd --system --uid 10001 --gid gateway --no-create-home gateway
 WORKDIR /app
