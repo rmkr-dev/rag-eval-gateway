@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: rag-eval-gateway
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    build:
+      enabled: true
+
+# Providers and model aliases. Keys come from the environment or Key Vault, never from this file.
+gateway:
+  providers: {}
+  models: {}
