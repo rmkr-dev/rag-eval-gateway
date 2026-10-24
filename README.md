@@ -17,8 +17,8 @@ flowchart LR
     DB --> Rep[Reports API<br/>and dashboard]
 ```
 
-> Status: early development. The skeleton is in place; provider adapters land next.
-> See the [roadmap](docs/roadmap.md).
+> Status: early development. Chat calls route through any OpenAI-compatible provider with
+> retries and fallback. Native adapters and streaming land next. See the [roadmap](docs/roadmap.md).
 
 ## Run it
 
@@ -27,6 +27,31 @@ mvn spring-boot:run
 curl localhost:8080/v1/models
 curl localhost:8080/actuator/health
 ```
+
+## Call it
+
+```bash
+curl localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -d '{
+  "model": "chat-default",
+  "messages": [{"role": "user", "content": "What is retrieval augmented generation?"}],
+  "max_tokens": 200
+}'
+```
+
+```json
+{
+  "id": "gw-6f1c...",
+  "model": "chat-default",
+  "provider": "openrouter",
+  "provider_model": "meta-llama/llama-3.1-70b-instruct",
+  "message": {"role": "assistant", "content": "..."},
+  "finish_reason": "stop",
+  "usage": {"prompt_tokens": 14, "completion_tokens": 120, "total_tokens": 134}
+}
+```
+
+The `X-Gateway-Calls` response header shows how many provider calls it took. Errors come back
+as `application/problem+json`. How retries and fallback decide is in [docs/routing.md](docs/routing.md).
 
 Or with Docker:
 
@@ -71,8 +96,15 @@ gateway:
 | `api-key-header` | `Authorization` | Header that carries the key |
 | `api-key-prefix` | `Bearer ` | Prefix for the key value |
 | `connect-timeout` / `read-timeout` | `5s` / `60s` | Upstream timeouts |
+| `chat-path` | `/chat/completions` | Path appended to `base-url` |
+| `headers` | none | Extra headers on every call, for example OpenRouter's `HTTP-Referer` |
 
-Startup fails if an alias points at a provider that is not configured.
+Azure OpenAI works through its v1 API: `base-url: https://<resource>.openai.azure.com/openai/v1`,
+`api-key-header: api-key`, `api-key-prefix: ""`, and the deployment name as `model`.
+
+Startup fails if an alias points at a provider that is not configured. Native `anthropic`,
+`gemini` and `bedrock` providers can already be configured; until their adapters ship, aliases
+skip past them to the next target.
 
 ## License
 

@@ -18,8 +18,8 @@ flowchart LR
 | # | Milestone | Status |
 |---|-----------|--------|
 | 1 | Skeleton, unified API contract, provider and alias config, CI, CodeQL, Docker image | Done |
-| 2 | Provider SPI, generic OpenAI-compatible adapter (any base URL, key header, model), config-driven routing, fallback chains, retries | Next |
-| 3 | Native Anthropic, Gemini and Bedrock adapters, server-sent event streaming | Planned |
+| 2 | Provider SPI, generic OpenAI-compatible adapter (any base URL, key header, model), config-driven routing, fallback chains, retries | Done |
+| 3 | Native Anthropic, Gemini and Bedrock adapters, server-sent event streaming | Next |
 | 4 | Per-call cost (config price table) and latency (time to first token, total) stored in Postgres, H2 for dev, Flyway | Planned |
 | 5 | Summary REST endpoints by client, model, provider and time range with p50/p95/p99, Thymeleaf dashboard | Planned |
 | 6 | Entra auth via `spring-security-jwt-starter` 1.0.0 | Planned |
@@ -29,5 +29,8 @@ flowchart LR
 | 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, probes, preflight script, deploy workflow | Planned |
 | 11 | Diagram-first docs | Planned |
 | 12 | Release v1.0.0 | Planned |
+
+Routing by client and by cost builds on the alias routing from milestone 2 once callers are
+identified (milestone 6) and costs are stored (milestone 4).
 
 Micrometer metrics stay optional. The built-in store is the main path for cost and latency.
