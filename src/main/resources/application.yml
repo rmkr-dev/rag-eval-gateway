@@ -4,6 +4,9 @@ spring:
   threads:
     virtual:
       enabled: true
+  mvc:
+    problemdetails:
+      enabled: true
 
 server:
   shutdown: graceful
@@ -25,3 +28,7 @@ management:
 gateway:
   providers: {}
   models: {}
+  retry:
+    max-attempts: 2
+    initial-backoff: 200ms
+    max-backoff: 2s

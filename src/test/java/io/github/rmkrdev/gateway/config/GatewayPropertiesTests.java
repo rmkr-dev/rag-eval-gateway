@@ -54,6 +54,31 @@ class GatewayPropertiesTests {
     }
 
     @Test
+    void appliesRetryDefaultsAndBindsChatPathAndHeaders() {
+        runner.withPropertyValues(
+                        "gateway.providers.openrouter.base-url=https://openrouter.example/api/v1",
+                        "gateway.providers.openrouter.chat-path=/v2/chat",
+                        "gateway.providers.openrouter.headers.HTTP-Referer=https://example.org")
+                .run(context -> {
+                    GatewayProperties properties = context.getBean(GatewayProperties.class);
+                    GatewayProperties.Provider provider = properties.providers().get("openrouter");
+                    assertThat(provider.chatPath()).isEqualTo("/v2/chat");
+                    assertThat(provider.headers()).containsEntry("HTTP-Referer", "https://example.org");
+                    assertThat(properties.retry().maxAttempts()).isEqualTo(2);
+                    assertThat(properties.retry().initialBackoff()).isEqualTo(Duration.ofMillis(200));
+                    assertThat(properties.retry().maxBackoff()).isEqualTo(Duration.ofSeconds(2));
+                    assertThat(properties.retry().multiplier()).isEqualTo(2.0);
+                    assertThat(properties.retry().jitter()).isEqualTo(0.2);
+                });
+    }
+
+    @Test
+    void rejectsZeroRetryAttempts() {
+        runner.withPropertyValues("gateway.retry.max-attempts=0")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
     void emptyConfigurationStarts() {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
