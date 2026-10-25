@@ -22,7 +22,7 @@ flowchart TD
 | Failure | Examples | What happens |
 |---|---|---|
 | Transient | timeout, connection error, 408, 425, 429, 5xx | Retry the same target, then fall back |
-| Provider | 401, 403, 404, response without choices, type with no adapter yet | Fall back at once |
+| Provider | 401, 403, 404, response without choices, stream that ends before any content, type with no adapter yet | Fall back at once |
 | Request | 400, 413, 422 | Stop and return the provider's status and message |
 
 ## Backoff
@@ -46,3 +46,9 @@ gateway:
 - `X-Gateway-Calls` on success: provider calls made, including the one that answered.
 - On 502, `attempts` lists provider id, model, try number, failure kind and status for each
   failed call. Base URLs, keys and prompts are never included.
+
+## Streaming
+
+The same rules apply to `"stream": true` until the first token reaches the gateway. After
+that the answer is committed to one target, and an upstream failure ends the stream with an
+error event instead of falling back. See [providers.md](providers.md#streaming).

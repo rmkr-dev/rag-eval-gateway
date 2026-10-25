@@ -55,7 +55,16 @@ public class ProviderRegistry {
 
         @Override
         public ProviderReply chat(String model, ChatRequest request) {
-            throw new ProviderException(id, ProviderException.Failure.PROVIDER, null,
+            throw noAdapter();
+        }
+
+        @Override
+        public ChatStream stream(String model, ChatRequest request) {
+            throw noAdapter();
+        }
+
+        private ProviderException noAdapter() {
+            return new ProviderException(id, ProviderException.Failure.PROVIDER, null,
                     "no adapter for provider type " + type);
         }
     }

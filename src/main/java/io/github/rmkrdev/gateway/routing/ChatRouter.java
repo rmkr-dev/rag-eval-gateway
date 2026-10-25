@@ -2,10 +2,13 @@ package io.github.rmkrdev.gateway.routing;
 
 import io.github.rmkrdev.gateway.api.ChatRequest;
 import io.github.rmkrdev.gateway.config.GatewayProperties;
+import io.github.rmkrdev.gateway.provider.ChatChunk;
 import io.github.rmkrdev.gateway.provider.ChatProvider;
+import io.github.rmkrdev.gateway.provider.ChatStream;
 import io.github.rmkrdev.gateway.provider.ProviderException;
 import io.github.rmkrdev.gateway.provider.ProviderException.Failure;
 import io.github.rmkrdev.gateway.provider.ProviderRegistry;
+import io.github.rmkrdev.gateway.provider.ProviderReply;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +56,39 @@ public class ChatRouter {
     }
 
     public RoutedReply route(ChatRequest request) {
+        long started = System.nanoTime();
+        Routed<ProviderReply> routed = callTargets(request, (provider, target) -> provider.chat(target.model(), request));
+        return new RoutedReply(routed.value(), routed.target(), routed.failures(),
+                Duration.ofNanos(System.nanoTime() - started));
+    }
+
+    /**
+     * Opens a streaming call. Retries and fallback work as for {@link #route}, up to and
+     * including the first chunk: a target only wins once it has produced content, so a stream
+     * that fails before its first token still falls back. After that the caller owns the
+     * stream and any failure ends it.
+     */
+    public RoutedStream routeStream(ChatRequest request) {
+        long started = System.nanoTime();
+        Routed<RoutedStream.Opened> routed = callTargets(request, (provider, target) -> open(provider, target, request));
+        return new RoutedStream(routed.value(), routed.target(), routed.failures(), started);
+    }
+
+    private static RoutedStream.Opened open(ChatProvider provider, GatewayProperties.Target target, ChatRequest request) {
+        ChatStream stream = provider.stream(target.model(), request);
+        try {
+            ChatChunk first = stream.next();
+            if (first == null) {
+                throw new ProviderException(provider.id(), Failure.PROVIDER, null, "stream ended without content");
+            }
+            return new RoutedStream.Opened(stream, first, System.nanoTime());
+        } catch (RuntimeException e) {
+            stream.close();
+            throw e;
+        }
+    }
+
+    private <T> Routed<T> callTargets(ChatRequest request, ProviderCall<T> call) {
         String alias = request.model();
         GatewayProperties.ModelAlias model = properties.models().get(alias);
         if (model == null) {
@@ -65,7 +101,7 @@ public class ChatRouter {
             int maxAttempts = properties.retry().maxAttempts();
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {
-                    return new RoutedReply(provider.chat(target.model(), request), target, List.copyOf(failures));
+                    return new Routed<>(call.call(provider, target), target, List.copyOf(failures));
                 } catch (ProviderException e) {
                     failures.add(new Attempt(target.provider(), target.model(), attempt, e.failure(), e.status()));
                     log.warn("model={} provider={} target={} attempt={} failure={} status={}",
@@ -83,6 +119,14 @@ public class ChatRouter {
             }
         }
         throw new AllTargetsFailedException(alias, failures);
+    }
+
+    @FunctionalInterface
+    private interface ProviderCall<T> {
+        T call(ChatProvider provider, GatewayProperties.Target target);
+    }
+
+    private record Routed<T>(T value, GatewayProperties.Target target, List<Attempt> failures) {
     }
 
     private void pause(Duration delay) {

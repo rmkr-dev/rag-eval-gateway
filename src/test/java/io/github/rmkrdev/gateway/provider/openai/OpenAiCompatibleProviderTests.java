@@ -13,17 +13,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.sun.net.httpserver.HttpServer;
 import io.github.rmkrdev.gateway.api.ChatMessage;
 import io.github.rmkrdev.gateway.api.ChatRequest;
+import io.github.rmkrdev.gateway.api.Usage;
 import io.github.rmkrdev.gateway.config.GatewayProperties;
 import io.github.rmkrdev.gateway.config.ProviderType;
+import io.github.rmkrdev.gateway.provider.ChatChunk;
+import io.github.rmkrdev.gateway.provider.ChatStream;
 import io.github.rmkrdev.gateway.provider.ProviderException;
 import io.github.rmkrdev.gateway.provider.ProviderException.Failure;
 import io.github.rmkrdev.gateway.provider.ProviderReply;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 class OpenAiCompatibleProviderTests {
@@ -44,7 +56,7 @@ class OpenAiCompatibleProviderTests {
             Duration readTimeout) {
         GatewayProperties.Provider config = new GatewayProperties.Provider(ProviderType.OPENAI_COMPATIBLE,
                 upstream.baseUrl() + "/v1", apiKey, header, prefix, Duration.ofSeconds(2), readTimeout,
-                "/chat/completions", headers);
+                "/chat/completions", headers, null);
         return new OpenAiCompatibleProvider("upstream", config);
     }
 
@@ -181,5 +193,136 @@ class OpenAiCompatibleProviderTests {
     void longErrorBodiesAreTruncated() {
         assertThat(OpenAiCompatibleProvider.errorMessage("x".repeat(1000))).hasSize(303).endsWith("...");
         assertThat(OpenAiCompatibleProvider.errorMessage("{\"message\":\"model not found\"}")).isEqualTo("model not found");
+    }
+
+    private static String sse(String... events) {
+        StringBuilder body = new StringBuilder();
+        for (String event : events) {
+            body.append("data: ").append(event).append("\n\n");
+        }
+        return body.toString();
+    }
+
+    private static List<ChatChunk> drain(ChatStream stream) {
+        List<ChatChunk> chunks = new ArrayList<>();
+        try (stream) {
+            for (ChatChunk chunk = stream.next(); chunk != null; chunk = stream.next()) {
+                chunks.add(chunk);
+            }
+        }
+        return chunks;
+    }
+
+    @Test
+    void streamsChunksAndFinalUsageUntilDone() {
+        upstream.stubFor(post("/v1/chat/completions").willReturn(aResponse()
+                .withHeader("Content-Type", "text/event-stream")
+                .withBody(sse(
+                        "{\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}",
+                        "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hel\"},\"finish_reason\":null}],\"usage\":null}",
+                        "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"stop\"}]}",
+                        "{\"choices\":[],\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":2,"
+                                + "\"prompt_tokens_details\":{\"cached_tokens\":4}}}",
+                        "[DONE]"))));
+
+        List<ChatChunk> chunks = drain(provider().stream("gpt-4o-mini", request));
+
+        assertThat(chunks).extracting(ChatChunk::content).containsExactly("Hel", "lo", null);
+        assertThat(chunks.get(1).finishReason()).isEqualTo("stop");
+        assertThat(chunks.get(2).usage()).isEqualTo(new Usage(9, 2, 4, null));
+        upstream.verify(postRequestedFor(urlEqualTo("/v1/chat/completions"))
+                .withHeader("Accept", equalTo("text/event-stream"))
+                .withHeader("Authorization", equalTo("Bearer sk-test"))
+                .withRequestBody(equalToJson("""
+                        {"model":"gpt-4o-mini",
+                         "messages":[{"role":"system","content":"Be brief."},{"role":"user","content":"Hi"}],
+                         "temperature":0.2,"max_tokens":64,"stream":true,"stream_options":{"include_usage":true}}
+                        """)));
+    }
+
+    @Test
+    void streamOpenFailureIsClassifiedBeforeAnyChunk() {
+        upstream.stubFor(post("/v1/chat/completions").willReturn(aResponse().withStatus(429)
+                .withHeader("Retry-After", "2")
+                .withBody("{\"error\":{\"message\":\"slow down\"}}")));
+
+        ProviderException e = catchThrowableOfType(ProviderException.class, () -> provider().stream("m", request));
+
+        assertThat(e.failure()).isEqualTo(Failure.TRANSIENT);
+        assertThat(e.status()).isEqualTo(429);
+        assertThat(e.retryAfter()).isEqualTo(Duration.ofSeconds(2));
+        assertThat(e.getMessage()).isEqualTo("HTTP 429: slow down");
+    }
+
+    @Test
+    void streamRejectionIsTheCallersProblem() {
+        upstream.stubFor(post("/v1/chat/completions").willReturn(aResponse().withStatus(400)
+                .withBody("{\"error\":{\"message\":\"bad stream_options\"}}")));
+
+        ProviderException e = catchThrowableOfType(ProviderException.class, () -> provider().stream("m", request));
+
+        assertThat(e.failure()).isEqualTo(Failure.REQUEST);
+    }
+
+    @Test
+    void errorEventMidStreamFailsTheStream() {
+        upstream.stubFor(post("/v1/chat/completions").willReturn(aResponse()
+                .withHeader("Content-Type", "text/event-stream")
+                .withBody(sse("{\"choices\":[{\"delta\":{\"content\":\"par\"}}]}",
+                        "{\"error\":{\"message\":\"upstream overloaded\"}}"))));
+
+        ChatStream stream = provider().stream("m", request);
+
+        assertThat(stream.next().content()).isEqualTo("par");
+        ProviderException e = catchThrowableOfType(ProviderException.class, stream::next);
+        assertThat(e.getMessage()).contains("upstream overloaded");
+        stream.close();
+    }
+
+    @Test
+    void streamCutBeforeDoneIsTransient() {
+        upstream.stubFor(post("/v1/chat/completions").willReturn(aResponse()
+                .withHeader("Content-Type", "text/event-stream")
+                .withBody(sse("{\"choices\":[{\"delta\":{\"content\":\"par\"}}]}"))));
+
+        ChatStream stream = provider().stream("m", request);
+
+        assertThat(stream.next().content()).isEqualTo("par");
+        ProviderException e = catchThrowableOfType(ProviderException.class, stream::next);
+        assertThat(e.failure()).isEqualTo(Failure.TRANSIENT);
+        assertThat(e.getMessage()).isEqualTo("stream ended before completion");
+    }
+
+    @Test
+    @Timeout(10)
+    void quietStreamTimesOutBetweenEvents() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/chat/completions", exchange -> {
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(sse("{\"choices\":[{\"delta\":{\"content\":\"a\"}}]}").getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                release.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException | IOException ignored) {
+                // test is over
+            }
+        });
+        server.start();
+        try {
+            GatewayProperties.Provider config = new GatewayProperties.Provider(ProviderType.OPENAI_COMPATIBLE,
+                    "http://127.0.0.1:" + server.getAddress().getPort() + "/v1", null, null, null,
+                    Duration.ofSeconds(2), Duration.ofMillis(300), null, Map.of(), null);
+            ChatStream stream = new OpenAiCompatibleProvider("quiet", config).stream("m", request);
+
+            assertThat(stream.next().content()).isEqualTo("a");
+            ProviderException e = catchThrowableOfType(ProviderException.class, stream::next);
+            assertThat(e.failure()).isEqualTo(Failure.TRANSIENT);
+            assertThat(e.getMessage()).contains("no data from provider for 300 ms");
+        } finally {
+            release.countDown();
+            server.stop(0);
+        }
     }
 }

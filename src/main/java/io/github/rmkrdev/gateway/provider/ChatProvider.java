@@ -21,4 +21,18 @@ public interface ChatProvider {
      * @throws ProviderException when the call fails
      */
     ProviderReply chat(String model, ChatRequest request);
+
+    /**
+     * Opens a streaming chat call. The upstream status is checked before this returns, so a
+     * rejected or failed call throws here and the router can still retry or fall back.
+     *
+     * @param model model name as the provider knows it
+     * @param request the caller's request
+     * @return the open stream, which the caller must close
+     * @throws ProviderException when the call cannot be opened
+     */
+    default ChatStream stream(String model, ChatRequest request) {
+        throw new ProviderException(id(), ProviderException.Failure.PROVIDER, null,
+                "provider does not support streaming");
+    }
 }

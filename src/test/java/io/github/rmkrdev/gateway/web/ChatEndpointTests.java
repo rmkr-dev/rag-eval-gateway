@@ -151,12 +151,4 @@ class ChatEndpointTests {
                 .andExpect(status().isBadRequest());
         primary.verify(0, postRequestedFor(urlEqualTo("/v1/chat/completions")));
     }
-
-    @Test
-    void streamingIsNotAvailableYet() throws Exception {
-        chat("""
-                {"model":"chat","messages":[{"role":"user","content":"hi"}],"stream":true}
-                """)
-                .andExpect(status().isNotImplemented());
-    }
 }

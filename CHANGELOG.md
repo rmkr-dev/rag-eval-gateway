@@ -8,6 +8,31 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Native Anthropic Messages adapter (`type: anthropic`): `x-api-key` and `anthropic-version`
+  headers, system messages moved to `system`, `max_tokens` always sent, stop reasons and usage
+  mapped, including prompt cache reads and writes.
+- Native Gemini adapter (`type: gemini`): `x-goog-api-key` header, `user`/`model` roles,
+  `systemInstruction`, `generationConfig`, `usageMetadata` with thinking tokens counted as
+  output, blocked prompts reported as `content_filter`.
+- Streaming: `"stream": true` returns `text/event-stream` in the OpenAI
+  `chat.completion.chunk` format with a final usage chunk and `data: [DONE]`, for all three
+  adapters. Retries and fallback apply until the first token; later upstream failures end the
+  stream with an error event.
+- `CallOutcome` and the `CallObserver` hook: usage, finish reason, failed attempts, time to
+  first token and total time for every call, ready for cost and latency storage.
+- `default-max-tokens` provider setting.
+- `cache_read_tokens` and `cache_write_tokens` in `usage` when the provider reports them.
+- [docs/providers.md](docs/providers.md) with example configuration and the native mappings.
+
+### Changed
+
+- `stream=true` no longer returns 501.
+- `api-key-header`, `api-key-prefix` and `chat-path` default per provider type, so native
+  providers need only `type`, `base-url` and `api-key`.
+- For streamed calls `read-timeout` limits the wait for headers and the gap between events,
+  not the whole answer.
+- AWS Bedrock moved to a later milestone; `bedrock` providers are still skipped by fallback.
+
 - `POST /v1/chat/completions`: one chat endpoint routed by model alias, with an
   `X-Gateway-Calls` header and `application/problem+json` errors (404 unknown model,
   502 with the list of failed attempts, provider rejections passed back, 501 for `stream=true`).
