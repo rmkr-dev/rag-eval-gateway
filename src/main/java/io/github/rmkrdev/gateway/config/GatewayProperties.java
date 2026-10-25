@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -48,24 +49,57 @@ public record GatewayProperties(
      * @param type wire protocol
      * @param baseUrl API base URL, for example {@code https://api.openai.com/v1}
      * @param apiKey secret, normally injected from Key Vault or an environment variable
-     * @param apiKeyHeader header that carries the key
-     * @param apiKeyPrefix value prefix for the key header, empty for raw keys
+     * @param apiKeyHeader header that carries the key; defaults to the protocol's own header
+     *     ({@code Authorization}, {@code x-api-key} or {@code x-goog-api-key})
+     * @param apiKeyPrefix value prefix for the key header; {@code "Bearer "} for
+     *     OpenAI-compatible providers, empty otherwise
      * @param connectTimeout TCP connect timeout
-     * @param readTimeout response read timeout
-     * @param chatPath path appended to the base URL for chat calls
+     * @param readTimeout time to wait for a response; when streaming, also the longest gap
+     *     allowed between two events
+     * @param chatPath path appended to the base URL for chat calls; defaults to
+     *     {@code /chat/completions}, {@code /v1/messages} for Anthropic, and {@code /models}
+     *     for Gemini, which adds {@code /{model}:generateContent}
      * @param headers extra headers sent on every call, for example OpenRouter's
-     *     {@code HTTP-Referer}
+     *     {@code HTTP-Referer} or a pinned {@code anthropic-version}
+     * @param defaultMaxTokens completion cap sent when the caller gives none; Anthropic
+     *     requires one, so it falls back to {@value #ANTHROPIC_DEFAULT_MAX_TOKENS} there
      */
     public record Provider(
             @NotNull @DefaultValue("openai-compatible") ProviderType type,
             @NotBlank String baseUrl,
             String apiKey,
-            @NotBlank @DefaultValue("Authorization") String apiKeyHeader,
-            @DefaultValue("Bearer ") String apiKeyPrefix,
+            @NotBlank String apiKeyHeader,
+            String apiKeyPrefix,
             @NotNull @DefaultValue("5s") Duration connectTimeout,
             @NotNull @DefaultValue("60s") Duration readTimeout,
-            @NotBlank @DefaultValue("/chat/completions") String chatPath,
-            @DefaultValue Map<String, String> headers) {
+            @NotBlank String chatPath,
+            @DefaultValue Map<String, String> headers,
+            @Positive Integer defaultMaxTokens) {
+
+        public static final int ANTHROPIC_DEFAULT_MAX_TOKENS = 4096;
+
+        public Provider {
+            if (type != null) {
+                if (apiKeyHeader == null) {
+                    apiKeyHeader = switch (type) {
+                        case ANTHROPIC -> "x-api-key";
+                        case GEMINI -> "x-goog-api-key";
+                        default -> "Authorization";
+                    };
+                }
+                if (apiKeyPrefix == null) {
+                    apiKeyPrefix = type == ProviderType.OPENAI_COMPATIBLE ? "Bearer " : "";
+                }
+                if (chatPath == null) {
+                    chatPath = switch (type) {
+                        case ANTHROPIC -> "/v1/messages";
+                        case GEMINI -> "/models";
+                        default -> "/chat/completions";
+                    };
+                }
+            }
+            headers = headers == null ? Map.of() : Map.copyOf(headers);
+        }
     }
 
     /**

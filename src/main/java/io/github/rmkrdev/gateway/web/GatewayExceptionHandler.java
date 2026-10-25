@@ -39,11 +39,4 @@ class GatewayExceptionHandler {
         problem.setProperty("attempts", e.attempts());
         return problem;
     }
-
-    @ExceptionHandler
-    ProblemDetail streaming(ChatController.StreamingNotSupportedException e) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, e.getMessage());
-        problem.setTitle("Streaming not available");
-        return problem;
-    }
 }

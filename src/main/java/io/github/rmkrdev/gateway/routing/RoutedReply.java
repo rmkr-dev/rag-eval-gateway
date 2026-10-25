@@ -2,6 +2,7 @@ package io.github.rmkrdev.gateway.routing;
 
 import io.github.rmkrdev.gateway.config.GatewayProperties;
 import io.github.rmkrdev.gateway.provider.ProviderReply;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -10,8 +11,10 @@ import java.util.List;
  * @param reply the provider's answer
  * @param target the provider and model that served it
  * @param failedAttempts failures before the successful call, empty on a clean first try
+ * @param elapsed time from routing start to the answer, retries and backoff included
  */
-public record RoutedReply(ProviderReply reply, GatewayProperties.Target target, List<Attempt> failedAttempts) {
+public record RoutedReply(ProviderReply reply, GatewayProperties.Target target, List<Attempt> failedAttempts,
+        Duration elapsed) {
 
     /** Total provider calls made, including the successful one. */
     public int calls() {

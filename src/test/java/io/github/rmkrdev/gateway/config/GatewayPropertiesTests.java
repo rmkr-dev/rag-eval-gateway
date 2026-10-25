@@ -106,4 +106,49 @@ class GatewayPropertiesTests {
         runner.withPropertyValues("gateway.models.empty.targets=")
                 .run(context -> assertThat(context).hasFailed());
     }
+
+    @Test
+    void nativeProvidersDefaultToTheirOwnKeyHeaderAndPath() {
+        runner.withPropertyValues(
+                        "gateway.providers.claude.type=anthropic",
+                        "gateway.providers.claude.base-url=https://api.anthropic.example",
+                        "gateway.providers.gemini.type=gemini",
+                        "gateway.providers.gemini.base-url=https://gemini.example/v1beta",
+                        "gateway.providers.gemini.default-max-tokens=1024")
+                .run(context -> {
+                    GatewayProperties properties = context.getBean(GatewayProperties.class);
+                    GatewayProperties.Provider claude = properties.providers().get("claude");
+                    assertThat(claude.apiKeyHeader()).isEqualTo("x-api-key");
+                    assertThat(claude.apiKeyPrefix()).isEmpty();
+                    assertThat(claude.chatPath()).isEqualTo("/v1/messages");
+                    assertThat(claude.defaultMaxTokens()).isNull();
+                    GatewayProperties.Provider gemini = properties.providers().get("gemini");
+                    assertThat(gemini.apiKeyHeader()).isEqualTo("x-goog-api-key");
+                    assertThat(gemini.apiKeyPrefix()).isEmpty();
+                    assertThat(gemini.chatPath()).isEqualTo("/models");
+                    assertThat(gemini.defaultMaxTokens()).isEqualTo(1024);
+                });
+    }
+
+    @Test
+    void explicitEmptyKeyPrefixIsKept() {
+        runner.withPropertyValues(
+                        "gateway.providers.azure.base-url=https://res.openai.example/openai/v1",
+                        "gateway.providers.azure.api-key-header=api-key",
+                        "gateway.providers.azure.api-key-prefix=")
+                .run(context -> {
+                    GatewayProperties.Provider azure = context.getBean(GatewayProperties.class).providers().get("azure");
+                    assertThat(azure.apiKeyHeader()).isEqualTo("api-key");
+                    assertThat(azure.apiKeyPrefix()).isEmpty();
+                });
+    }
+
+    @Test
+    void rejectsNonPositiveDefaultMaxTokens() {
+        runner.withPropertyValues(
+                        "gateway.providers.claude.type=anthropic",
+                        "gateway.providers.claude.base-url=https://api.anthropic.example",
+                        "gateway.providers.claude.default-max-tokens=0")
+                .run(context -> assertThat(context).hasFailed());
+    }
 }
