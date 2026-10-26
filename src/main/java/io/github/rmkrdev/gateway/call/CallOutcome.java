@@ -3,12 +3,15 @@ package io.github.rmkrdev.gateway.call;
 import io.github.rmkrdev.gateway.api.Usage;
 import io.github.rmkrdev.gateway.routing.Attempt;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 /**
  * What one gateway call cost and how long it took. Holds no prompt or answer text.
  *
  * @param id gateway call id returned to the caller
+ * @param startedAt when the gateway received the call
+ * @param client caller identity, {@code anonymous} until authentication is configured
  * @param model alias the caller asked for
  * @param provider provider that answered, or {@code null} when none did
  * @param providerModel model name on that provider, or {@code null}
@@ -24,6 +27,8 @@ import java.util.List;
  */
 public record CallOutcome(
         String id,
+        Instant startedAt,
+        String client,
         String model,
         String provider,
         String providerModel,

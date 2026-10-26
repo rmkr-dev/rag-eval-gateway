@@ -18,8 +18,9 @@ flowchart LR
 ```
 
 > Status: early development. Chat calls route through any OpenAI-compatible provider and
-> native Anthropic and Gemini adapters, with retries, fallback and streaming. Built-in cost and
-> latency tracking lands next. See the [roadmap](docs/roadmap.md).
+> native Anthropic and Gemini adapters, with retries, fallback and streaming, and every call's
+> cost and latency is stored in the gateway's own database. Reports and a dashboard land next.
+> See the [roadmap](docs/roadmap.md).
 
 ## Run it
 
@@ -64,7 +65,29 @@ curl -N localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -
 }'
 ```
 
-Or with Docker:
+## Track cost and latency
+
+Every call is priced from a config price table and stored with its tokens, time to first
+token and total time, in Postgres or in-memory H2 for local runs. Name the caller with
+`X-Gateway-Client` and look a call up by its id:
+
+```yaml
+gateway:
+  pricing:
+    prices:
+      - provider: openrouter
+        model: meta-llama/llama-3.1-70b-instruct
+        input: 0.40
+        output: 0.40
+```
+
+```bash
+curl localhost:8080/v1/calls/gw-6f1c...
+```
+
+Prices, storage, retention and the stored fields are in [docs/tracking.md](docs/tracking.md).
+
+## Run with Docker
 
 ```bash
 docker build -t rag-eval-gateway .
