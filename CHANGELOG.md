@@ -8,6 +8,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Built-in cost and latency tracking: every call is priced from `gateway.pricing` and stored
+  in the `gateway_call` table (client, alias, provider, model, status, tokens, cost, currency,
+  price version, time to first token, total time, failed attempts). No prompt or answer text
+  is stored.
+- Config price table per million tokens with separate cache read and write rates, `*` model
+  entries per provider and `effective-from` dates so price changes never rewrite old costs.
+- Postgres storage with Flyway migrations, in-memory H2 by default for local runs.
+- Background batched writer with a bounded queue: the database is never on the request path,
+  and records are dropped and counted rather than slowing callers down.
+- Retention purge (`gateway.tracking.retention`, 90 days by default).
+- `GET /v1/calls/{id}` returns the stored record for one call.
+- `X-Gateway-Client` header to attribute calls until Entra authentication arrives.
+- Startup check that every price names a configured provider.
+- Testcontainers test against real Postgres.
+- [docs/tracking.md](docs/tracking.md).
+
 - Native Anthropic Messages adapter (`type: anthropic`): `x-api-key` and `anthropic-version`
   headers, system messages moved to `system`, `max_tokens` always sent, stop reasons and usage
   mapped, including prompt cache reads and writes.

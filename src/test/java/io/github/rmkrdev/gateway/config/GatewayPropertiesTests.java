@@ -2,6 +2,8 @@ package io.github.rmkrdev.gateway.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.rmkrdev.gateway.tracking.PricingProperties;
+import java.math.BigDecimal;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -14,7 +16,7 @@ import org.springframework.context.annotation.Import;
 class GatewayPropertiesTests {
 
     @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(GatewayProperties.class)
+    @EnableConfigurationProperties({GatewayProperties.class, PricingProperties.class})
     @Import(GatewayConfigValidator.class)
     static class Config {
     }
@@ -93,6 +95,46 @@ class GatewayPropertiesTests {
                         "gateway.models.chat.targets[0].model=gpt-4o-mini")
                 .run(context -> assertThat(context).hasFailed()
                         .getFailure().rootCause().hasMessageContaining("unknown provider 'missing'"));
+    }
+
+    @Test
+    void rejectsPriceForUnknownProvider() {
+        runner.withPropertyValues(
+                        "gateway.pricing.prices[0].provider=missing",
+                        "gateway.pricing.prices[0].model=gpt-4o-mini",
+                        "gateway.pricing.prices[0].input=0.15",
+                        "gateway.pricing.prices[0].output=0.60")
+                .run(context -> assertThat(context).hasFailed()
+                        .getFailure().rootCause().hasMessageContaining("names unknown provider 'missing'"));
+    }
+
+    @Test
+    void bindsPricesWithCacheRatesDefaultingToInput() {
+        runner.withPropertyValues(
+                        "gateway.providers.openai.base-url=https://api.openai.example/v1",
+                        "gateway.pricing.prices[0].provider=openai",
+                        "gateway.pricing.prices[0].model=gpt-4o-mini",
+                        "gateway.pricing.prices[0].input=0.15",
+                        "gateway.pricing.prices[0].output=0.60",
+                        "gateway.pricing.prices[0].effective-from=2026-11-01")
+                .run(context -> {
+                    PricingProperties pricing = context.getBean(PricingProperties.class);
+                    assertThat(pricing.currency()).isEqualTo("USD");
+                    PricingProperties.Price price = pricing.prices().getFirst();
+                    assertThat(price.cacheRead()).isEqualByComparingTo(new BigDecimal("0.15"));
+                    assertThat(price.version()).isEqualTo("2026-11-01");
+                });
+    }
+
+    @Test
+    void rejectsNegativePrice() {
+        runner.withPropertyValues(
+                        "gateway.providers.openai.base-url=https://api.openai.example/v1",
+                        "gateway.pricing.prices[0].provider=openai",
+                        "gateway.pricing.prices[0].model=gpt-4o-mini",
+                        "gateway.pricing.prices[0].input=-1",
+                        "gateway.pricing.prices[0].output=0.60")
+                .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

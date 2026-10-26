@@ -30,6 +30,7 @@ final class ChatStreamWriter {
     private static final Logger log = LoggerFactory.getLogger(ChatStreamWriter.class);
     private static final byte[] DONE = "data: [DONE]\n\n".getBytes(StandardCharsets.UTF_8);
 
+    private final ChatController.Call call;
     private final String id;
     private final long created;
     private final String model;
@@ -37,9 +38,10 @@ final class ChatStreamWriter {
     private final JsonMapper json;
     private final CallObservers observers;
 
-    ChatStreamWriter(String id, long created, String model, RoutedStream routed, JsonMapper json,
+    ChatStreamWriter(ChatController.Call call, long created, String model, RoutedStream routed, JsonMapper json,
             CallObservers observers) {
-        this.id = id;
+        this.call = call;
+        this.id = call.id();
         this.created = created;
         this.model = model;
         this.routed = routed;
@@ -87,7 +89,8 @@ final class ChatStreamWriter {
             error = "client_disconnected";
             log.debug("caller went away during stream {}: {}", id, e.getMessage());
         } finally {
-            observers.completed(new CallOutcome(id, model, routed.target().provider(), routed.target().model(), true,
+            observers.completed(new CallOutcome(id, call.startedAt(), call.client(), model,
+                    routed.target().provider(), routed.target().model(), true,
                     routed.failedAttempts(), usage == null ? Usage.NONE : usage, finishReason,
                     routed.timeToFirstToken(), routed.elapsed(), error));
         }

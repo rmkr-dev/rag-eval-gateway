@@ -25,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.json.JsonMapper;
@@ -39,6 +40,7 @@ import tools.jackson.databind.json.JsonMapper;
 class ChatController {
 
     static final String CALLS_HEADER = "X-Gateway-Calls";
+    static final String CLIENT_HEADER = "X-Gateway-Client";
 
     private final ChatRouter router;
     private final CallObservers observers;
@@ -55,26 +57,31 @@ class ChatController {
      * holds no platform thread and needs no async timeout.
      */
     @PostMapping
-    ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request, HttpServletResponse response)
-            throws IOException {
-        String id = "gw-" + UUID.randomUUID();
-        long started = System.nanoTime();
+    ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request,
+            @RequestHeader(name = CLIENT_HEADER, required = false) String clientHeader,
+            HttpServletResponse response) throws IOException {
+        Call call = new Call("gw-" + UUID.randomUUID(), Instant.now(), ClientIds.of(clientHeader), System.nanoTime());
         try {
             if (request.streaming()) {
-                stream(id, request, response);
+                stream(call, request, response);
                 return null;
             }
-            return complete(id, request);
+            return complete(call, request);
         } catch (AllTargetsFailedException e) {
-            failed(id, request, started, e.attempts(), "all_targets_failed");
+            failed(call, request, e.attempts(), "all_targets_failed");
             throw e;
         } catch (RequestRejectedException e) {
-            failed(id, request, started, e.attempts(), "request_rejected");
+            failed(call, request, e.attempts(), "request_rejected");
             throw e;
         }
     }
 
-    private ResponseEntity<ChatResponse> complete(String id, ChatRequest request) {
+    /** Identity of one call, fixed when it arrives. */
+    record Call(String id, Instant startedAt, String client, long startedNanos) {
+    }
+
+    private ResponseEntity<ChatResponse> complete(Call call, ChatRequest request) {
+        String id = call.id();
         RoutedReply routed = router.route(request);
         ProviderReply reply = routed.reply();
         ChatResponse body = new ChatResponse(
@@ -85,13 +92,13 @@ class ChatController {
                 reply.message(),
                 reply.finishReason(),
                 reply.usage());
-        observers.completed(new CallOutcome(id, request.model(), routed.target().provider(), routed.target().model(),
-                false, routed.failedAttempts(), reply.usage(), reply.finishReason(), routed.elapsed(),
+        observers.completed(new CallOutcome(id, call.startedAt(), call.client(), request.model(),
+                routed.target().provider(), routed.target().model(), false, routed.failedAttempts(), reply.usage(), reply.finishReason(), routed.elapsed(),
                 routed.elapsed(), null));
         return ResponseEntity.ok().header(CALLS_HEADER, String.valueOf(routed.calls())).body(body);
     }
 
-    private void stream(String id, ChatRequest request, HttpServletResponse response) throws IOException {
+    private void stream(Call call, ChatRequest request, HttpServletResponse response) throws IOException {
         long created = Instant.now().getEpochSecond();
         RoutedStream routed = router.routeStream(request);
         response.setStatus(HttpServletResponse.SC_OK);
@@ -100,11 +107,12 @@ class ChatController {
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
         response.setHeader(CALLS_HEADER, String.valueOf(routed.calls()));
-        new ChatStreamWriter(id, created, request.model(), routed, json, observers).writeTo(response.getOutputStream());
+        new ChatStreamWriter(call, created, request.model(), routed, json, observers).writeTo(response.getOutputStream());
     }
 
-    private void failed(String id, ChatRequest request, long started, List<Attempt> attempts, String error) {
-        observers.completed(new CallOutcome(id, request.model(), null, null, request.streaming(), attempts,
-                Usage.NONE, null, null, Duration.ofNanos(System.nanoTime() - started), error));
+    private void failed(Call call, ChatRequest request, List<Attempt> attempts, String error) {
+        observers.completed(new CallOutcome(call.id(), call.startedAt(), call.client(), request.model(), null, null,
+                request.streaming(), attempts, Usage.NONE, null, null,
+                Duration.ofNanos(System.nanoTime() - call.startedNanos()), error));
     }
 }

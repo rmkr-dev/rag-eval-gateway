@@ -7,6 +7,12 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  # In-memory H2 for local runs. Point SPRING_DATASOURCE_URL, _USERNAME and _PASSWORD at
+  # Postgres anywhere the data matters; Flyway creates the schema on startup.
+  datasource:
+    url: jdbc:h2:mem:gateway;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
 
 server:
   shutdown: graceful
@@ -32,3 +38,13 @@ gateway:
     max-attempts: 2
     initial-backoff: 200ms
     max-backoff: 2s
+  # Prices per million tokens. Calls without a matching price are stored without a cost.
+  pricing:
+    currency: USD
+    prices: []
+  tracking:
+    enabled: true
+    queue-capacity: 10000
+    batch-size: 200
+    flush-interval: 1s
+    retention: 90d
