@@ -1,5 +1,6 @@
 package io.github.rmkrdev.gateway.web;
 
+import io.github.rmkrdev.gateway.report.InvalidReportException;
 import io.github.rmkrdev.gateway.routing.AllTargetsFailedException;
 import io.github.rmkrdev.gateway.routing.RequestRejectedException;
 import io.github.rmkrdev.gateway.routing.UnknownModelException;
@@ -37,6 +38,13 @@ class GatewayExceptionHandler {
                 status == null ? HttpStatus.BAD_REQUEST : status, e.getMessage());
         problem.setTitle("Provider rejected the request");
         problem.setProperty("attempts", e.attempts());
+        return problem;
+    }
+
+    @ExceptionHandler
+    ProblemDetail invalidReport(InvalidReportException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+        problem.setTitle("Invalid report request");
         return problem;
     }
 }

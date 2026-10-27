@@ -21,8 +21,8 @@ flowchart LR
 | 2 | Provider SPI, generic OpenAI-compatible adapter (any base URL, key header, model), config-driven routing, fallback chains, retries | Done |
 | 3 | Native Anthropic and Gemini adapters, server-sent event streaming for every adapter, call outcomes with time to first token | Done |
 | 4 | Per-call cost (config price table) and latency (time to first token, total) stored in Postgres, H2 for dev, Flyway | Done |
-| 5 | Summary REST endpoints by client, model, provider and time range with p50/p95/p99, Thymeleaf dashboard | Next |
-| 6 | Entra auth via `spring-security-jwt-starter` 1.0.0 | Planned |
+| 5 | Summary REST endpoints by client, model, provider and time range with p50/p95/p99, Thymeleaf dashboard | Done |
+| 6 | Entra auth via `spring-security-jwt-starter` 1.0.0 | Next |
 | 7 | Per-client token budgets and rate limits enforced from stored usage | Planned |
 | 8 | PII redaction for prompts and logs | Planned |
 | 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Planned |

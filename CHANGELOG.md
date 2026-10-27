@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Reports API: `GET /v1/reports/summary` groups calls by client, model or provider and
+  `GET /v1/reports/series` buckets them by hour or day, with call and error counts, prompt,
+  completion and cache tokens, cost, unpriced calls and exact p50/p95/p99 of total time and
+  time to first token.
+- `from`, `to`, `range`, `zone` and `client`/`model`/`provider` filters with defaults, a
+  maximum range and a row limit; bad input returns a 400 problem.
+- Built-in dashboard at `/dashboard`: one Thymeleaf page with inline CSS and SVG, no scripts.
+- `gateway.reports` settings: `enabled`, `dashboard.enabled`, `default-range`, `max-range`,
+  `max-rows`.
+- Testcontainers test of the report queries against real Postgres.
+- [docs/reports.md](docs/reports.md).
+
 - Built-in cost and latency tracking: every call is priced from `gateway.pricing` and stored
   in the `gateway_call` table (client, alias, provider, model, status, tokens, cost, currency,
   price version, time to first token, total time, failed attempts). No prompt or answer text

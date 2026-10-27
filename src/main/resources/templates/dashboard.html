@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rag-eval-gateway dashboard</title>
+<style>
+  :root { --ink: #1f2933; --muted: #6b7785; --line: #e3e7ec; --bar: #3b82f6; --bad: #e5484d; --bg: #f7f9fb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header, main { max-width: 1100px; margin: 0 auto; padding: 16px 24px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  h1 { font-size: 18px; margin: 0; }
+  h2 { font-size: 15px; margin: 28px 0 8px; }
+  form { display: flex; gap: 8px; align-items: center; }
+  select, input, button { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  .note { color: var(--muted); font-size: 12px; }
+  .warn { background: #fff7e6; border: 1px solid #f5d38a; border-radius: 8px; padding: 8px 12px; }
+  .error { background: #fdecec; border: 1px solid #f3b4b5; border-radius: 8px; padding: 8px 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+  .card b { display: block; font-size: 20px; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
+  svg { display: block; width: 100%; height: 120px; }
+  .calls { fill: var(--bar); }
+  .errors { fill: var(--bad); }
+  .axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .meter { display: inline-block; width: 80px; height: 8px; background: var(--line); border-radius: 4px; vertical-align: middle; margin-left: 6px; }
+  .meter span { display: block; height: 100%; background: var(--bar); border-radius: 4px; }
+  .meter.slow span { background: #f59e0b; }
+</style>
+</head>
+<body>
+<header>
+  <h1>rag-eval-gateway</h1>
+  <form method="get" th:action="@{/dashboard}">
+    <label>Range
+      <select name="range">
+        <option th:each="r : ${ranges}" th:value="${r}" th:text="${r}" th:selected="${r == range}">24h</option>
+      </select>
+    </label>
+    <label>Zone <input name="zone" th:value="${zone}" size="14"></label>
+    <button type="submit">Show</button>
+  </form>
+</header>
+<main>
+  <p class="warn">No authentication yet. Keep this page and <code>/v1/reports</code> off the public internet until Entra auth is on.</p>
+
+  <p class="error" th:if="${error}" th:text="${error}">error</p>
+
+  <th:block th:if="${view}" th:with="o=${view.overview}, t=${view.overview.totals}">
+    <p class="note" th:text="${view.rangeLabel}">range</p>
+
+    <section class="cards">
+      <div class="card">Calls <b th:text="${#numbers.formatInteger(t.calls, 1, 'COMMA')}">0</b></div>
+      <div class="card">Errors <b th:text="|${#numbers.formatInteger(t.errors, 1, 'COMMA')} (${#numbers.formatPercent(t.errorRate(), 1, 1)})|">0</b></div>
+      <div class="card">Cost <b th:text="|${#numbers.formatDecimal(t.cost, 1, 'COMMA', 4, 'POINT')} ${o.currency}|">0</b></div>
+      <div class="card">Tokens in / out
+        <b th:text="|${#numbers.formatInteger(t.promptTokens, 1, 'COMMA')} / ${#numbers.formatInteger(t.completionTokens, 1, 'COMMA')}|">0</b></div>
+      <div class="card">Cached tokens <b th:text="${#numbers.formatInteger(t.cacheReadTokens, 1, 'COMMA')}">0</b></div>
+      <div class="card">Latency p95 <b th:text="${t.totalMs} ? |${t.totalMs.p95} ms| : '-'">-</b></div>
+      <div class="card">TTFT p95 <b th:text="${t.ttftMs} ? |${t.ttftMs.p95} ms| : '-'">-</b></div>
+    </section>
+    <p class="note" th:if="${t.unpricedCalls > 0}" th:text="|${t.unpricedCalls} calls have no price in ${o.currency} and are not in the cost.|">unpriced</p>
+
+    <h2 th:text="|Calls per ${o.bucket} (peak ${view.peakCalls}, errors in red)|">Calls</h2>
+    <div class="panel">
+      <svg viewBox="0 0 960 120" preserveAspectRatio="none" role="img" aria-label="Calls over time">
+        <g th:each="b : ${view.bars}">
+          <title th:text="${b.title}">bucket</title>
+          <rect class="calls" th:attr="x=${b.x},y=${120 - b.callsHeight},width=${b.width},height=${b.callsHeight}"></rect>
+          <rect class="errors" th:attr="x=${b.x},y=${120 - b.errorsHeight},width=${b.width},height=${b.errorsHeight}"></rect>
+        </g>
+      </svg>
+      <div class="axis"><span th:text="${view.firstBucket}">start</span><span th:text="${view.lastBucket}">end</span></div>
+    </div>
+
+    <th:block th:each="table : ${view.tables}">
+      <h2 th:text="${table.title}">By client</h2>
+      <div class="panel">
+        <p class="note" th:if="${#lists.isEmpty(table.rows)}">No calls in this range.</p>
+        <table th:unless="${#lists.isEmpty(table.rows)}">
+          <thead>
+          <tr><th>Name</th><th>Calls</th><th>Errors</th><th>Tokens in</th><th>Tokens out</th><th>Cached</th>
+            <th>Cost</th><th>p50</th><th>p95</th><th>p99</th><th>TTFT p50</th><th>TTFT p95</th></tr>
+          </thead>
+          <tbody>
+          <tr th:each="row : ${table.rows}" th:with="s=${row.stats}">
+            <td th:text="${row.label}">name</td>
+            <td th:text="${#numbers.formatInteger(s.calls, 1, 'COMMA')}">0</td>
+            <td th:text="${#numbers.formatInteger(s.errors, 1, 'COMMA')}">0</td>
+            <td th:text="${#numbers.formatInteger(s.promptTokens, 1, 'COMMA')}">0</td>
+            <td th:text="${#numbers.formatInteger(s.completionTokens, 1, 'COMMA')}">0</td>
+            <td th:text="${#numbers.formatInteger(s.cacheReadTokens, 1, 'COMMA')}">0</td>
+            <td><span th:text="${#numbers.formatDecimal(s.cost, 1, 'COMMA', 4, 'POINT')}">0</span><span class="meter"><span th:style="|width: ${row.costPercent}%|"></span></span></td>
+            <td th:text="${s.totalMs} ? ${s.totalMs.p50} : '-'">-</td>
+            <td><span th:text="${s.totalMs} ? ${s.totalMs.p95} : '-'">-</span><span class="meter slow"><span th:style="|width: ${row.latencyPercent}%|"></span></span></td>
+            <td th:text="${s.totalMs} ? ${s.totalMs.p99} : '-'">-</td>
+            <td th:text="${s.ttftMs} ? ${s.ttftMs.p50} : '-'">-</td>
+            <td th:text="${s.ttftMs} ? ${s.ttftMs.p95} : '-'">-</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </th:block>
+    <p class="note">Latencies in ms over successful calls. Costs in <span th:text="${o.currency}">USD</span>. JSON at <code>/v1/reports/summary</code> and <code>/v1/reports/series</code>.</p>
+  </th:block>
+</main>
+</body>
+</html>

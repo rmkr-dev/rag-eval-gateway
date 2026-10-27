@@ -48,3 +48,12 @@ gateway:
     batch-size: 200
     flush-interval: 1s
     retention: 90d
+  # Reports API and dashboard. No authentication until Entra arrives (milestone 6), so keep
+  # them off the public internet or turn them off.
+  reports:
+    enabled: true
+    default-range: 24h
+    max-range: 31d
+    max-rows: 500000
+    dashboard:
+      enabled: true

@@ -18,9 +18,9 @@ flowchart LR
 ```
 
 > Status: early development. Chat calls route through any OpenAI-compatible provider and
-> native Anthropic and Gemini adapters, with retries, fallback and streaming, and every call's
-> cost and latency is stored in the gateway's own database. Reports and a dashboard land next.
-> See the [roadmap](docs/roadmap.md).
+> native Anthropic and Gemini adapters, with retries, fallback and streaming. Every call's
+> cost and latency is stored in the gateway's own database, with reports and a dashboard on
+> top. Entra authentication lands next. See the [roadmap](docs/roadmap.md).
 
 ## Run it
 
@@ -86,6 +86,20 @@ curl localhost:8080/v1/calls/gw-6f1c...
 ```
 
 Prices, storage, retention and the stored fields are in [docs/tracking.md](docs/tracking.md).
+
+## Reports and dashboard
+
+Cost, tokens, errors and p50/p95/p99 latency by client, model or provider, as JSON or per
+hour or day, and a built-in dashboard at `/dashboard`:
+
+```bash
+curl 'localhost:8080/v1/reports/summary?group_by=client&range=7d'
+curl 'localhost:8080/v1/reports/series?bucket=day&range=30d&zone=Asia/Kolkata'
+```
+
+There is no authentication until Entra auth arrives, so keep these off the public internet or
+turn them off with `gateway.reports.enabled=false`. Parameters, limits and how percentiles are
+computed are in [docs/reports.md](docs/reports.md).
 
 ## Run with Docker
 

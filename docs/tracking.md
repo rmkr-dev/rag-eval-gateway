@@ -52,7 +52,7 @@ erDiagram
 ```
 
 Indexes cover a time range alone and a time range by client, alias or provider, which is what
-the reports in the next milestone query.
+the [reports](reports.md) query.
 
 ## Prices
 
