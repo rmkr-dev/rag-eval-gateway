@@ -23,6 +23,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:reports;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
         "gateway.tracking.retention=0",
+        "gateway.reports.enabled=true",
+        "gateway.reports.dashboard.enabled=true",
         "gateway.reports.max-rows=100"
 })
 @AutoConfigureMockMvc

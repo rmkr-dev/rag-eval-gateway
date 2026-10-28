@@ -17,7 +17,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Runs the report queries against a real Postgres. Skipped without Docker. */
-@SpringBootTest(properties = "gateway.tracking.retention=0")
+@SpringBootTest(properties = {"gateway.tracking.retention=0", "gateway.reports.enabled=true"})
 @Testcontainers(disabledWithoutDocker = true)
 class PostgresReportTests {
 

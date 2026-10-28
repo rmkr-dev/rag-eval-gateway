@@ -16,9 +16,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class ReportsToggleTests {
 
     @Nested
-    @SpringBootTest(properties = "gateway.reports.enabled=false")
+    @SpringBootTest
     @AutoConfigureMockMvc
-    class ReportsOff {
+    class OffByDefault {
 
         @Autowired
         MockMvc mvc;
@@ -35,7 +35,7 @@ class ReportsToggleTests {
     }
 
     @Nested
-    @SpringBootTest(properties = "gateway.reports.dashboard.enabled=false")
+    @SpringBootTest(properties = "gateway.reports.enabled=true")
     @AutoConfigureMockMvc
     class DashboardOff {
 
@@ -50,7 +50,22 @@ class ReportsToggleTests {
     }
 
     @Nested
-    @SpringBootTest(properties = "gateway.tracking.enabled=false")
+    @SpringBootTest(properties = "gateway.reports.dashboard.enabled=true")
+    @AutoConfigureMockMvc
+    class DashboardNeedsReports {
+
+        @Autowired
+        MockMvc mvc;
+
+        @Test
+        void dashboardAloneIsNotServed() throws Exception {
+            mvc.perform(get("/dashboard")).andExpect(status().isNotFound());
+        }
+    }
+
+    @Nested
+    @SpringBootTest(properties = {"gateway.tracking.enabled=false", "gateway.reports.enabled=true",
+            "gateway.reports.dashboard.enabled=true"})
     @AutoConfigureMockMvc
     class TrackingOff {
 

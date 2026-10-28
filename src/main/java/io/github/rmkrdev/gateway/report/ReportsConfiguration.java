@@ -2,7 +2,7 @@ package io.github.rmkrdev.gateway.report;
 
 import io.github.rmkrdev.gateway.tracking.PricingProperties;
 import java.time.Clock;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -10,12 +10,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Wires the reports API. Needs tracking; turn reports off with
- * {@code gateway.reports.enabled=false}.
+ * Wires the reports API. Needs tracking and is off until {@code gateway.reports.enabled=true},
+ * because nothing protects it until Entra auth arrives.
  */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = {"gateway.tracking.enabled", "gateway.reports.enabled"}, havingValue = "true",
-        matchIfMissing = true)
+@ConditionalOnBooleanProperty(name = "gateway.tracking.enabled", matchIfMissing = true)
+@ConditionalOnBooleanProperty("gateway.reports.enabled")
 class ReportsConfiguration {
 
     @Bean

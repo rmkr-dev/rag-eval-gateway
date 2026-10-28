@@ -6,7 +6,7 @@ import io.github.rmkrdev.gateway.report.ReportQuery;
 import io.github.rmkrdev.gateway.report.ReportRequests;
 import io.github.rmkrdev.gateway.report.ReportService;
 import io.github.rmkrdev.gateway.report.Reports;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,8 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/v1/reports")
-@ConditionalOnProperty(name = {"gateway.tracking.enabled", "gateway.reports.enabled"}, havingValue = "true",
-        matchIfMissing = true)
+@ConditionalOnBooleanProperty(name = "gateway.tracking.enabled", matchIfMissing = true)
+@ConditionalOnBooleanProperty("gateway.reports.enabled")
 class ReportsController {
 
     private final ReportService reports;
