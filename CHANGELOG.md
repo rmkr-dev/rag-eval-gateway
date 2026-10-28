@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `fallback-on-bad-request` per model alias, off by default: a 400 from one target moves to
+  the next instead of going back to the caller, before the first token when streaming. 413,
+  422 and a 400 from the last target still reach the caller. See
+  [docs/routing.md](docs/routing.md#falling-back-on-400).
+
 - Reports API: `GET /v1/reports/summary` groups calls by client, model or provider and
   `GET /v1/reports/series` buckets them by hour or day, with call and error counts, prompt,
   completion and cache tokens, cost, unpriced calls and exact p50/p95/p99 of total time and
@@ -53,6 +58,9 @@ All notable changes to this project are documented here. The format follows
 - [docs/providers.md](docs/providers.md) with example configuration and the native mappings.
 
 ### Changed
+
+- `gateway.reports.enabled` and `gateway.reports.dashboard.enabled` default to `false` until
+  Entra auth protects them; set both to `true` to serve `/v1/reports/*` and `/dashboard`.
 
 - `stream=true` no longer returns 501.
 - `api-key-header`, `api-key-prefix` and `chat-path` default per provider type, so native

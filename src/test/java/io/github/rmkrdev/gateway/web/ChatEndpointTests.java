@@ -36,7 +36,12 @@ import org.springframework.test.web.servlet.ResultActions;
         "gateway.models.chat.targets[0].provider=primary",
         "gateway.models.chat.targets[0].model=gpt-4o-mini",
         "gateway.models.chat.targets[1].provider=backup",
-        "gateway.models.chat.targets[1].model=llama3.1"
+        "gateway.models.chat.targets[1].model=llama3.1",
+        "gateway.models.lenient.targets[0].provider=primary",
+        "gateway.models.lenient.targets[0].model=gpt-4o-mini",
+        "gateway.models.lenient.targets[1].provider=backup",
+        "gateway.models.lenient.targets[1].model=llama3.1",
+        "gateway.models.lenient.fallback-on-bad-request=true"
 })
 @AutoConfigureMockMvc
 class ChatEndpointTests {
@@ -132,6 +137,33 @@ class ChatEndpointTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(containsString("context length exceeded")));
         backup.verify(0, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+    }
+
+    @Test
+    void badRequestFallsBackWhenTheAliasAllowsIt() throws Exception {
+        primary.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse().withStatus(400)
+                .withBody("{\"error\":{\"message\":\"unsupported parameter: max_tokens\"}}")));
+        backup.stubFor(WireMock.post("/v1/chat/completions").willReturn(okJson(completion("from backup"))));
+
+        chat(BODY.replace("\"chat\"", "\"lenient\""))
+                .andExpect(status().isOk())
+                .andExpect(header().string(ChatController.CALLS_HEADER, "2"))
+                .andExpect(jsonPath("$.provider").value("backup"))
+                .andExpect(jsonPath("$.message.content").value("from backup"));
+        primary.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+    }
+
+    @Test
+    void badRequestFromTheLastTargetStillReachesTheCaller() throws Exception {
+        primary.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse().withStatus(400)));
+        backup.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse().withStatus(400)
+                .withBody("{\"error\":{\"message\":\"context length exceeded\"}}")));
+
+        chat(BODY.replace("\"chat\"", "\"lenient\""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("context length exceeded")));
+        primary.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+        backup.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
     }
 
     @Test

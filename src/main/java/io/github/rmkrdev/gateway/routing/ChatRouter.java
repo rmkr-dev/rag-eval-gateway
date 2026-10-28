@@ -25,7 +25,8 @@ import org.springframework.stereotype.Service;
  *       {@code Retry-After} up to {@code max-backoff}, then the next target is tried.</li>
  *   <li>Provider failures (bad key, unknown model) move to the next target straight away.</li>
  *   <li>Request failures (the provider rejected the request itself) stop routing and go back
- *       to the caller.</li>
+ *       to the caller, except a 400 on an alias with {@code fallback-on-bad-request}, which
+ *       moves to the next target like a provider failure.</li>
  * </ul>
  */
 @Service
@@ -95,7 +96,10 @@ public class ChatRouter {
             throw new UnknownModelException(alias);
         }
         List<Attempt> failures = new ArrayList<>();
-        for (GatewayProperties.Target target : model.targets()) {
+        List<GatewayProperties.Target> targets = model.targets();
+        for (int index = 0; index < targets.size(); index++) {
+            GatewayProperties.Target target = targets.get(index);
+            boolean hasNext = index < targets.size() - 1;
             ChatProvider provider = registry.find(target.provider())
                     .orElseThrow(() -> new IllegalStateException("provider not built: " + target.provider()));
             int maxAttempts = properties.retry().maxAttempts();
@@ -108,6 +112,9 @@ public class ChatRouter {
                             alias, target.provider(), target.model(), attempt, e.failure(), e.status());
                     log.debug("provider error detail: {}", e.getMessage());
                     if (e.failure() == Failure.REQUEST) {
+                        if (hasNext && fallsBackOn(model, e)) {
+                            break;
+                        }
                         throw new RequestRejectedException(e.status() == null ? 400 : e.status(),
                                 e.getMessage(), failures);
                     }
@@ -119,6 +126,10 @@ public class ChatRouter {
             }
         }
         throw new AllTargetsFailedException(alias, failures);
+    }
+
+    private static boolean fallsBackOn(GatewayProperties.ModelAlias model, ProviderException e) {
+        return model.fallbackOnBadRequest() && Integer.valueOf(400).equals(e.status());
     }
 
     @FunctionalInterface

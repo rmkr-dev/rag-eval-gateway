@@ -44,6 +44,11 @@ import tools.jackson.databind.json.JsonMapper;
         "gateway.models.chat.targets[0].model=gpt-4o-mini",
         "gateway.models.chat.targets[1].provider=backup",
         "gateway.models.chat.targets[1].model=llama3.1",
+        "gateway.models.lenient.targets[0].provider=primary",
+        "gateway.models.lenient.targets[0].model=gpt-4o-mini",
+        "gateway.models.lenient.targets[1].provider=backup",
+        "gateway.models.lenient.targets[1].model=llama3.1",
+        "gateway.models.lenient.fallback-on-bad-request=true",
         "gateway.models.claude.targets[0].provider=claude",
         "gateway.models.claude.targets[0].model=claude-sonnet-4-5",
         "gateway.providers.claude.type=anthropic"
@@ -229,6 +234,26 @@ class ChatStreamingEndpointTests {
         backup.verify(0, postRequestedFor(urlEqualTo("/v1/chat/completions")));
         assertThat(observer.outcomes).singleElement()
                 .satisfies(outcome -> assertThat(outcome.error()).isEqualTo("request_rejected"));
+    }
+
+    @Test
+    void badRequestBeforeStreamingFallsBackWhenTheAliasAllowsIt() throws Exception {
+        primary.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse().withStatus(400)
+                .withBody("{\"error\":{\"message\":\"unsupported parameter: stream_options\"}}")));
+        backup.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse()
+                .withHeader("Content-Type", "text/event-stream")
+                .withBody(sse(delta("from backup"), FINISH, "[DONE]"))));
+
+        ResultActions result = chat(BODY.replace("\"chat\"", "\"lenient\""))
+                .andExpect(status().isOk())
+                .andExpect(header().string(ChatController.CALLS_HEADER, "2"));
+
+        List<String> data = dataLines(result);
+        assertThat(JSON.readTree(data.get(0)).path("provider").asString()).isEqualTo("backup");
+        assertThat(data).last().isEqualTo("[DONE]");
+        primary.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+        assertThat(observer.outcomes).singleElement()
+                .satisfies(outcome -> assertThat(outcome.failedAttempts()).hasSize(1));
     }
 
     @Test

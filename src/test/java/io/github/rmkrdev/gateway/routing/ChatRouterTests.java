@@ -38,6 +38,7 @@ class ChatRouterTests {
     private final Map<String, Deque<Supplier<ChatStream>>> streams = new HashMap<>();
     private final Map<String, Integer> calls = new HashMap<>();
     private final List<Duration> sleeps = new ArrayList<>();
+    private boolean fallbackOnBadRequest;
 
     private static ProviderReply answer(String text) {
         return new ProviderReply(new ChatMessage("assistant", text), "stop", new Usage(1, 1));
@@ -65,7 +66,7 @@ class ChatRouterTests {
         GatewayProperties.Retry retry = new GatewayProperties.Retry(maxAttempts, Duration.ofMillis(100),
                 Duration.ofMillis(250), 2.0, 0.0);
         GatewayProperties properties = new GatewayProperties(providers,
-                Map.of("chat", new GatewayProperties.ModelAlias(targets)), retry);
+                Map.of("chat", new GatewayProperties.ModelAlias(targets, fallbackOnBadRequest)), retry);
         ChatProviderFactory factory = new ChatProviderFactory() {
             @Override
             public ProviderType type() {
@@ -174,6 +175,59 @@ class ChatRouterTests {
 
         assertThat(e.status()).isEqualTo(422);
         assertThat(e.attempts()).hasSize(1);
+        assertThat(calls).doesNotContainKey("backup");
+    }
+
+    @Test
+    void badRequestStopsRoutingByDefault() {
+        script("primary", List.of(fail("primary", Failure.REQUEST, 400, null)));
+        script("backup", List.of(() -> answer("never")));
+
+        RequestRejectedException e = catchThrowableOfType(RequestRejectedException.class,
+                () -> router(3, "primary", "backup").route(REQUEST));
+
+        assertThat(e.status()).isEqualTo(400);
+        assertThat(calls).doesNotContainKey("backup");
+    }
+
+    @Test
+    void badRequestFallsBackWithoutRetryWhenTheAliasAllowsIt() {
+        fallbackOnBadRequest = true;
+        script("primary", List.of(fail("primary", Failure.REQUEST, 400, null)));
+        script("backup", List.of(() -> answer("backup")));
+
+        RoutedReply routed = router(3, "primary", "backup").route(REQUEST);
+
+        assertThat(routed.target().provider()).isEqualTo("backup");
+        assertThat(routed.failedAttempts()).containsExactly(
+                new Attempt("primary", "primary-model", 1, Failure.REQUEST, 400));
+        assertThat(calls).containsEntry("primary", 1);
+        assertThat(sleeps).isEmpty();
+    }
+
+    @Test
+    void badRequestOnTheLastTargetIsReturnedEvenWhenFallbackIsAllowed() {
+        fallbackOnBadRequest = true;
+        script("primary", List.of(fail("primary", Failure.REQUEST, 400, null)));
+        script("backup", List.of(fail("backup", Failure.REQUEST, 400, null)));
+
+        RequestRejectedException e = catchThrowableOfType(RequestRejectedException.class,
+                () -> router(3, "primary", "backup").route(REQUEST));
+
+        assertThat(e.status()).isEqualTo(400);
+        assertThat(e.attempts()).hasSize(2);
+    }
+
+    @Test
+    void otherRequestFailuresStillStopWhenBadRequestFallbackIsOn() {
+        fallbackOnBadRequest = true;
+        script("primary", List.of(fail("primary", Failure.REQUEST, 422, null)));
+        script("backup", List.of(() -> answer("never")));
+
+        RequestRejectedException e = catchThrowableOfType(RequestRejectedException.class,
+                () -> router(3, "primary", "backup").route(REQUEST));
+
+        assertThat(e.status()).isEqualTo(422);
         assertThat(calls).doesNotContainKey("backup");
     }
 
@@ -322,6 +376,19 @@ class ChatRouterTests {
 
         assertThat(e.status()).isEqualTo(400);
         assertThat(calls).doesNotContainKey("backup");
+    }
+
+    @Test
+    void streamFallsBackOnBadRequestBeforeTheFirstChunkWhenTheAliasAllowsIt() {
+        fallbackOnBadRequest = true;
+        streams("primary", List.of(failOpen("primary", Failure.REQUEST, 400)));
+        streams("backup", List.of(() -> new ScriptedStream(List.of(chunk("from backup")))));
+
+        RoutedStream routed = router(3, "primary", "backup").routeStream(REQUEST);
+
+        assertThat(routed.target().provider()).isEqualTo("backup");
+        assertThat(routed.failedAttempts()).extracting(Attempt::status).containsExactly(400);
+        assertThat(routed.next().content()).isEqualTo("from backup");
     }
 
     @Test
