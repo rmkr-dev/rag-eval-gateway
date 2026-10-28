@@ -22,7 +22,7 @@ flowchart LR
 | 3 | Native Anthropic and Gemini adapters, server-sent event streaming for every adapter, call outcomes with time to first token | Done |
 | 4 | Per-call cost (config price table) and latency (time to first token, total) stored in Postgres, H2 for dev, Flyway | Done |
 | 5 | Summary REST endpoints by client, model, provider and time range with p50/p95/p99, Thymeleaf dashboard | Done |
-| 6 | Entra auth via `spring-security-jwt-starter` 1.0.0 | Next |
+| 6 | Entra auth via `spring-security-jwt-starter` 1.0.0 | After Bedrock |
 | 7 | Per-client token budgets and rate limits enforced from stored usage | Planned |
 | 8 | PII redaction for prompts and logs | Planned |
 | 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Planned |
@@ -30,8 +30,16 @@ flowchart LR
 | 11 | Diagram-first docs | Planned |
 | 12 | Release v1.0.0 | Planned |
 
+After milestone 5, and before Entra auth:
+
+| Item | Status |
+|---|---|
+| Reports API and dashboard off by default until auth protects them | Done |
+| Per-alias `fallback-on-bad-request` switch, off by default | Done |
+| AWS Bedrock adapter | Next |
+
 AWS Bedrock moved out of milestone 3: it needs SigV4 signing and the AWS SDK, so it gets its
-own change after milestone 5, using the Converse API behind the same SPI. Until then a
+own change before milestone 6, using the Converse API behind the same SPI. Until then a
 `bedrock` provider is skipped by fallback.
 
 Routing by client and by cost builds on the alias routing from milestone 2 once callers are

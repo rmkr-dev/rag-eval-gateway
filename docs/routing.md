@@ -23,7 +23,33 @@ flowchart TD
 |---|---|---|
 | Transient | timeout, connection error, 408, 425, 429, 5xx | Retry the same target, then fall back |
 | Provider | 401, 403, 404, response without choices, stream that ends before any content, type with no adapter yet | Fall back at once |
-| Request | 400, 413, 422 | Stop and return the provider's status and message |
+| Request | 400, 413, 422 | Stop and return the provider's status and message (400 can [fall back](#falling-back-on-400)) |
+
+## Falling back on 400
+
+Providers do not all accept the same parameters, so a request one rejects with 400 may work on
+the next. An alias can opt in to treating a 400 like a provider failure:
+
+```yaml
+gateway:
+  models:
+    chat-default:
+      fallback-on-bad-request: true   # default false
+      targets:
+        - provider: openrouter
+          model: meta-llama/llama-3.1-70b-instruct
+        - provider: anthropic
+          model: claude-sonnet-4-5
+```
+
+| `fallback-on-bad-request` | 400 from a target |
+|---|---|
+| `false` (default) | Returned to the caller, no more targets tried |
+| `true` | Next target tried at once, without retrying; a 400 from the last target is returned to the caller |
+
+413 and 422 always go back to the caller. The 400 is listed in `attempts` and counted in
+`X-Gateway-Calls` like any other failed call. When streaming, the switch applies only before
+the first token, like every other fallback.
 
 ## Backoff
 

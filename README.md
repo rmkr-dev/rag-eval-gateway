@@ -97,9 +97,10 @@ curl 'localhost:8080/v1/reports/summary?group_by=client&range=7d'
 curl 'localhost:8080/v1/reports/series?bucket=day&range=30d&zone=Asia/Kolkata'
 ```
 
-There is no authentication until Entra auth arrives, so keep these off the public internet or
-turn them off with `gateway.reports.enabled=false`. Parameters, limits and how percentiles are
-computed are in [docs/reports.md](docs/reports.md).
+Both are off by default until Entra auth puts sign-in in front of them. Turn them on with
+`gateway.reports.enabled=true` and `gateway.reports.dashboard.enabled=true`, on a private
+network only. Parameters, limits and how percentiles are computed are in
+[docs/reports.md](docs/reports.md).
 
 ## Run with Docker
 

@@ -4,8 +4,16 @@ Reports read the `gateway_call` table that [tracking](tracking.md) fills. There 
 for scripts and a server-rendered dashboard for people. Neither needs anything besides the
 gateway and its database.
 
-> No authentication until Entra auth lands (milestone 6). Keep `/v1/reports` and `/dashboard`
-> on a private network, or turn them off, until then.
+> Off by default until Entra auth (milestone 6) puts sign-in in front of them. To use them
+> before then, turn them on only where the gateway is on a private network:
+>
+> ```yaml
+> gateway:
+>   reports:
+>     enabled: true
+>     dashboard:
+>       enabled: true
+> ```
 
 ```mermaid
 flowchart LR
@@ -116,10 +124,11 @@ page with inline CSS and SVG: no scripts, no build step, nothing from a CDN.
 
 | Property | Default | Purpose |
 |---|---|---|
-| `gateway.reports.enabled` | `true` | Serve `/v1/reports/*` (and allow the dashboard) |
-| `gateway.reports.dashboard.enabled` | `true` | Serve `/dashboard` |
+| `gateway.reports.enabled` | `false` | Serve `/v1/reports/*` (and allow the dashboard) |
+| `gateway.reports.dashboard.enabled` | `false` | Serve `/dashboard`; needs `gateway.reports.enabled` too |
 | `gateway.reports.default-range` | `24h` | Range when no `from` or `range` is given |
 | `gateway.reports.max-range` | `31d` | Longest range one report may cover |
 | `gateway.reports.max-rows` | `500000` | Most calls one report may read |
 
-Both need `gateway.tracking.enabled`. With tracking off, neither endpoint exists.
+Both need `gateway.tracking.enabled`. With tracking off, neither endpoint exists. The
+dashboard and the `zone` parameter default to UTC.
