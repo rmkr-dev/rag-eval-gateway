@@ -125,9 +125,10 @@ public record GatewayProperties(
      * A model alias. Targets are tried in order, so later entries act as fallbacks.
      *
      * @param targets ordered provider and model pairs
-     * @param fallbackOnBadRequest move to the next target when a provider answers 400, for
-     *     example when providers disagree on which parameters they accept; off by default, so
-     *     a 400 goes straight back to the caller
+     * @param fallbackOnBadRequest move to the next target when a provider answers 400, 413 or
+     *     422, for example when providers disagree on which parameters they accept or how large
+     *     a request may be; off by default, so these go straight back to the caller. A rejection
+     *     from the last target is always returned to the caller
      */
     public record ModelAlias(
             @NotEmpty List<@Valid Target> targets,

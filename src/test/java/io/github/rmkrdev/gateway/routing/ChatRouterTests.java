@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.Iterator;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ChatRouterTests {
 
@@ -218,17 +220,47 @@ class ChatRouterTests {
         assertThat(e.attempts()).hasSize(2);
     }
 
-    @Test
-    void otherRequestFailuresStillStopWhenBadRequestFallbackIsOn() {
-        fallbackOnBadRequest = true;
-        script("primary", List.of(fail("primary", Failure.REQUEST, 422, null)));
+    @ParameterizedTest
+    @ValueSource(ints = {413, 422})
+    void tooLargeAndUnprocessableStopRoutingByDefault(int status) {
+        script("primary", List.of(fail("primary", Failure.REQUEST, status, null)));
         script("backup", List.of(() -> answer("never")));
 
         RequestRejectedException e = catchThrowableOfType(RequestRejectedException.class,
                 () -> router(3, "primary", "backup").route(REQUEST));
 
-        assertThat(e.status()).isEqualTo(422);
+        assertThat(e.status()).isEqualTo(status);
         assertThat(calls).doesNotContainKey("backup");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {413, 422})
+    void tooLargeAndUnprocessableFallBackWithoutRetryWhenTheAliasAllowsIt(int status) {
+        fallbackOnBadRequest = true;
+        script("primary", List.of(fail("primary", Failure.REQUEST, status, null)));
+        script("backup", List.of(() -> answer("backup")));
+
+        RoutedReply routed = router(3, "primary", "backup").route(REQUEST);
+
+        assertThat(routed.target().provider()).isEqualTo("backup");
+        assertThat(routed.failedAttempts()).containsExactly(
+                new Attempt("primary", "primary-model", 1, Failure.REQUEST, status));
+        assertThat(calls).containsEntry("primary", 1);
+        assertThat(sleeps).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {413, 422})
+    void tooLargeAndUnprocessableOnTheLastTargetAreReturnedEvenWhenFallbackIsAllowed(int status) {
+        fallbackOnBadRequest = true;
+        script("primary", List.of(fail("primary", Failure.REQUEST, 400, null)));
+        script("backup", List.of(fail("backup", Failure.REQUEST, status, null)));
+
+        RequestRejectedException e = catchThrowableOfType(RequestRejectedException.class,
+                () -> router(3, "primary", "backup").route(REQUEST));
+
+        assertThat(e.status()).isEqualTo(status);
+        assertThat(e.attempts()).extracting(Attempt::status).containsExactly(400, status);
     }
 
     @Test
@@ -388,6 +420,20 @@ class ChatRouterTests {
 
         assertThat(routed.target().provider()).isEqualTo("backup");
         assertThat(routed.failedAttempts()).extracting(Attempt::status).containsExactly(400);
+        assertThat(routed.next().content()).isEqualTo("from backup");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {413, 422})
+    void streamFallsBackOnTooLargeAndUnprocessableWhenTheAliasAllowsIt(int status) {
+        fallbackOnBadRequest = true;
+        streams("primary", List.of(failOpen("primary", Failure.REQUEST, status)));
+        streams("backup", List.of(() -> new ScriptedStream(List.of(chunk("from backup")))));
+
+        RoutedStream routed = router(3, "primary", "backup").routeStream(REQUEST);
+
+        assertThat(routed.target().provider()).isEqualTo("backup");
+        assertThat(routed.failedAttempts()).extracting(Attempt::status).containsExactly(status);
         assertThat(routed.next().content()).isEqualTo("from backup");
     }
 
