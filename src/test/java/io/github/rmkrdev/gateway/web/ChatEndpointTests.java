@@ -19,6 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -162,6 +164,52 @@ class ChatEndpointTests {
         chat(BODY.replace("\"chat\"", "\"lenient\""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(containsString("context length exceeded")));
+        primary.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+        backup.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {413, 422})
+    void tooLargeAndUnprocessableGoBackWithoutFallbackByDefault(int status) throws Exception {
+        primary.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse().withStatus(status)
+                .withBody("{\"error\":{\"message\":\"rejected by primary\"}}")));
+        backup.stubFor(WireMock.post("/v1/chat/completions").willReturn(okJson(completion("never"))));
+
+        chat(BODY)
+                .andExpect(status().is(status))
+                .andExpect(jsonPath("$.detail").value(containsString("rejected by primary")));
+        primary.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+        backup.verify(0, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {413, 422})
+    void tooLargeAndUnprocessableFallBackWhenTheAliasAllowsIt(int status) throws Exception {
+        primary.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse().withStatus(status)
+                .withBody("{\"error\":{\"message\":\"request too large for this model\"}}")));
+        backup.stubFor(WireMock.post("/v1/chat/completions").willReturn(okJson(completion("from backup"))));
+
+        chat(BODY.replace("\"chat\"", "\"lenient\""))
+                .andExpect(status().isOk())
+                .andExpect(header().string(ChatController.CALLS_HEADER, "2"))
+                .andExpect(jsonPath("$.provider").value("backup"))
+                .andExpect(jsonPath("$.message.content").value("from backup"));
+        primary.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {413, 422})
+    void tooLargeAndUnprocessableFromTheLastTargetReachTheCaller(int status) throws Exception {
+        primary.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse().withStatus(400)));
+        backup.stubFor(WireMock.post("/v1/chat/completions").willReturn(aResponse().withStatus(status)
+                .withBody("{\"error\":{\"message\":\"rejected by backup\"}}")));
+
+        chat(BODY.replace("\"chat\"", "\"lenient\""))
+                .andExpect(status().is(status))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value(containsString("rejected by backup")))
+                .andExpect(jsonPath("$.attempts.length()").value(2))
+                .andExpect(jsonPath("$.attempts[1].status").value(status));
         primary.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
         backup.verify(1, postRequestedFor(urlEqualTo("/v1/chat/completions")));
     }

@@ -8,10 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `fallback-on-bad-request` now also covers 413 and 422: with the switch on, a 400, 413 or
+  422 from one target moves to the next, and the last target's status and message reach the
+  caller instead of a 502. Off by default, so nothing changes for aliases without it. See
+  [docs/routing.md](docs/routing.md#falling-back-on-400-413-and-422).
+
 - `fallback-on-bad-request` per model alias, off by default: a 400 from one target moves to
-  the next instead of going back to the caller, before the first token when streaming. 413,
-  422 and a 400 from the last target still reach the caller. See
-  [docs/routing.md](docs/routing.md#falling-back-on-400).
+  the next instead of going back to the caller, before the first token when streaming. A 400
+  from the last target still reaches the caller. See
+  [docs/routing.md](docs/routing.md#falling-back-on-400-413-and-422).
 
 - Reports API: `GET /v1/reports/summary` groups calls by client, model or provider and
   `GET /v1/reports/series` buckets them by hour or day, with call and error counts, prompt,

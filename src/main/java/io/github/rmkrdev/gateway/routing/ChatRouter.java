@@ -12,6 +12,7 @@ import io.github.rmkrdev.gateway.provider.ProviderReply;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,14 +26,18 @@ import org.springframework.stereotype.Service;
  *       {@code Retry-After} up to {@code max-backoff}, then the next target is tried.</li>
  *   <li>Provider failures (bad key, unknown model) move to the next target straight away.</li>
  *   <li>Request failures (the provider rejected the request itself) stop routing and go back
- *       to the caller, except a 400 on an alias with {@code fallback-on-bad-request}, which
- *       moves to the next target like a provider failure.</li>
+ *       to the caller, except on an alias with {@code fallback-on-bad-request}, where a 400, 413
+ *       or 422 moves to the next target like a provider failure. The last target's rejection
+ *       still goes back to the caller.</li>
  * </ul>
  */
 @Service
 public class ChatRouter {
 
     private static final Logger log = LoggerFactory.getLogger(ChatRouter.class);
+
+    /** Statuses that {@code fallback-on-bad-request} moves to the next target. */
+    private static final Set<Integer> FALLBACK_REQUEST_STATUSES = Set.of(400, 413, 422);
 
     /** Blocks the current thread; replaced in tests. */
     interface Sleeper {
@@ -129,7 +134,8 @@ public class ChatRouter {
     }
 
     private static boolean fallsBackOn(GatewayProperties.ModelAlias model, ProviderException e) {
-        return model.fallbackOnBadRequest() && Integer.valueOf(400).equals(e.status());
+        return model.fallbackOnBadRequest() && e.status() != null
+                && FALLBACK_REQUEST_STATUSES.contains(e.status());
     }
 
     @FunctionalInterface
