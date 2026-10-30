@@ -47,6 +47,7 @@ public final class ProviderHttpClient {
     private final Map<String, String> headers;
     private final HttpClient http;
     private final RestClient rest;
+    private final RequestSigner signer;
 
     /**
      * @param providerId provider id, used in errors
@@ -55,7 +56,16 @@ public final class ProviderHttpClient {
      *     configured {@code headers} with the same name win
      */
     public ProviderHttpClient(String providerId, GatewayProperties.Provider config, Map<String, String> protocolHeaders) {
+        this(providerId, config, protocolHeaders, null);
+    }
+
+    /**
+     * @param signer adds headers computed from each request's bytes, or {@code null}
+     */
+    public ProviderHttpClient(String providerId, GatewayProperties.Provider config, Map<String, String> protocolHeaders,
+            RequestSigner signer) {
         this.providerId = providerId;
+        this.signer = signer;
         this.baseUrl = stripTrailingSlash(config.baseUrl());
         this.readTimeout = config.readTimeout();
         Map<String, String> all = new LinkedHashMap<>(protocolHeaders);
@@ -71,11 +81,17 @@ public final class ProviderHttpClient {
                 .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(http);
         requestFactory.setReadTimeout(readTimeout);
-        this.rest = RestClient.builder()
+        RestClient.Builder builder = RestClient.builder()
                 .requestFactory(requestFactory)
                 .baseUrl(baseUrl)
-                .defaultHeaders(h -> headers.forEach(h::set))
-                .build();
+                .defaultHeaders(h -> headers.forEach(h::set));
+        if (signer != null) {
+            builder.requestInterceptor((request, body, execution) -> {
+                signer.sign(request.getMethod().name(), request.getURI(), body).forEach(request.getHeaders()::set);
+                return execution.execute(request, body);
+            });
+        }
+        this.rest = builder.build();
     }
 
     /**
@@ -117,12 +133,30 @@ public final class ProviderHttpClient {
      * @throws ProviderException for non-2xx answers and I/O errors
      */
     public SseEventReader postStream(String path, Object body) {
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(baseUrl + path))
+        return new SseEventReader(postForStream(path, body, MediaType.TEXT_EVENT_STREAM_VALUE), readTimeout);
+    }
+
+    /**
+     * Posts a JSON body and returns the raw streaming response body, for protocols that do not
+     * stream server-sent events. The status is checked first, as for {@link #postStream}.
+     *
+     * @param path path after the base URL, already encoded, query string included
+     * @param accept media type to ask for
+     * @return the open body, which the caller must close
+     * @throws ProviderException for non-2xx answers and I/O errors
+     */
+    public InputStream postForStream(String path, Object body, String accept) {
+        URI uri = URI.create(baseUrl + path);
+        byte[] bytes = JSON.writeValueAsBytes(body);
+        HttpRequest.Builder request = HttpRequest.newBuilder(uri)
                 .timeout(readTimeout)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(JSON.writeValueAsBytes(body)));
+                .header(HttpHeaders.ACCEPT, accept)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(bytes));
         headers.forEach(request::setHeader);
+        if (signer != null) {
+            signer.sign("POST", uri, bytes).forEach(request::setHeader);
+        }
         HttpResponse<InputStream> response;
         try {
             response = http.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
@@ -134,7 +168,7 @@ public final class ProviderHttpClient {
         }
         int status = response.statusCode();
         if (status >= 200 && status < 300) {
-            return new SseEventReader(response.body(), readTimeout);
+            return response.body();
         }
         String text;
         try (InputStream in = response.body()) {
@@ -143,6 +177,11 @@ public final class ProviderHttpClient {
             text = "";
         }
         throw httpError(status, response.headers().firstValue(HttpHeaders.RETRY_AFTER).orElse(null), text);
+    }
+
+    /** The provider's {@code read-timeout}, which streams use as their idle timeout. */
+    public Duration readTimeout() {
+        return readTimeout;
     }
 
     /** Parses one JSON event payload, reporting garbage as a provider failure. */

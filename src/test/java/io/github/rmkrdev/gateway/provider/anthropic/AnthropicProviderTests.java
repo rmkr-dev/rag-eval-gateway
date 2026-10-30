@@ -52,7 +52,7 @@ class AnthropicProviderTests {
     private AnthropicProvider provider(Map<String, String> headers, Integer defaultMaxTokens) {
         return new AnthropicProvider("claude", new GatewayProperties.Provider(ProviderType.ANTHROPIC,
                 upstream.baseUrl(), "sk-ant-test", null, null, Duration.ofSeconds(2), Duration.ofSeconds(5),
-                null, headers, defaultMaxTokens));
+                null, headers, defaultMaxTokens, null));
     }
 
     private AnthropicProvider provider() {

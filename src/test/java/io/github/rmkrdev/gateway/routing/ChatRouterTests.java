@@ -62,7 +62,7 @@ class ChatRouterTests {
         for (String id : targetProviders) {
             ProviderType type = id.startsWith("native") ? ProviderType.ANTHROPIC : ProviderType.OPENAI_COMPATIBLE;
             providers.put(id, new GatewayProperties.Provider(type, "http://" + id, null, "Authorization", "Bearer ",
-                    Duration.ofSeconds(1), Duration.ofSeconds(1), "/chat/completions", Map.of(), null));
+                    Duration.ofSeconds(1), Duration.ofSeconds(1), "/chat/completions", Map.of(), null, null));
             targets.add(new GatewayProperties.Target(id, id + "-model"));
         }
         GatewayProperties.Retry retry = new GatewayProperties.Retry(maxAttempts, Duration.ofMillis(100),
