@@ -75,6 +75,33 @@ class GatewayPropertiesTests {
     }
 
     @Test
+    void bedrockDefaultsToTheRegionalEndpointAndHidesKeys() {
+        runner.withPropertyValues(
+                        "gateway.providers.bedrock.type=bedrock",
+                        "gateway.providers.bedrock.aws.region=eu-central-1",
+                        "gateway.providers.bedrock.aws.access-key-id=AKIDEXAMPLE",
+                        "gateway.providers.bedrock.aws.secret-access-key=secret-example",
+                        "gateway.providers.bedrock.aws.session-token=token-example")
+                .run(context -> {
+                    GatewayProperties.Provider provider =
+                            context.getBean(GatewayProperties.class).providers().get("bedrock");
+                    assertThat(provider.type()).isEqualTo(ProviderType.BEDROCK);
+                    assertThat(provider.baseUrl()).isEqualTo("https://bedrock-runtime.eu-central-1.amazonaws.com");
+                    assertThat(provider.chatPath()).isEqualTo("/model");
+                    assertThat(provider.apiKeyPrefix()).isEqualTo("Bearer ");
+                    assertThat(provider.aws().region()).isEqualTo("eu-central-1");
+                    assertThat(provider.toString()).contains("eu-central-1")
+                            .doesNotContain("AKIDEXAMPLE", "secret-example", "token-example");
+                });
+    }
+
+    @Test
+    void bedrockWithoutRegionOrBaseUrlFailsValidation() {
+        runner.withPropertyValues("gateway.providers.bedrock.type=bedrock")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
     void rejectsZeroRetryAttempts() {
         runner.withPropertyValues("gateway.retry.max-attempts=0")
                 .run(context -> assertThat(context).hasFailed());

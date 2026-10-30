@@ -61,6 +61,10 @@ Each rejection is listed in `attempts` and counted in `X-Gateway-Calls` like any
 call. When streaming, the switch applies only before the first token, like every other
 fallback.
 
+The last target decides the status. If an earlier target rejected the request but the last
+one fails another way (timeout, 5xx, bad key), the caller gets a 502, and `attempts` still
+shows the earlier 400, 413 or 422.
+
 ## Backoff
 
 Wait before retry *n* = `initial-backoff × multiplier^(n-1)`, capped at `max-backoff`, then

@@ -56,7 +56,7 @@ class OpenAiCompatibleProviderTests {
             Duration readTimeout) {
         GatewayProperties.Provider config = new GatewayProperties.Provider(ProviderType.OPENAI_COMPATIBLE,
                 upstream.baseUrl() + "/v1", apiKey, header, prefix, Duration.ofSeconds(2), readTimeout,
-                "/chat/completions", headers, null);
+                "/chat/completions", headers, null, null);
         return new OpenAiCompatibleProvider("upstream", config);
     }
 
@@ -313,7 +313,7 @@ class OpenAiCompatibleProviderTests {
         try {
             GatewayProperties.Provider config = new GatewayProperties.Provider(ProviderType.OPENAI_COMPATIBLE,
                     "http://127.0.0.1:" + server.getAddress().getPort() + "/v1", null, null, null,
-                    Duration.ofSeconds(2), Duration.ofMillis(300), null, Map.of(), null);
+                    Duration.ofSeconds(2), Duration.ofMillis(300), null, Map.of(), null, null);
             ChatStream stream = new OpenAiCompatibleProvider("quiet", config).stream("m", request);
 
             assertThat(stream.next().content()).isEqualTo("a");

@@ -1,0 +1,9 @@
+POST
+/model/anthropic.claude-3-5-sonnet-20240620-v1%253A0/converse
+
+host:bedrock-runtime.us-east-1.amazonaws.com
+x-amz-date:20261030T120000Z
+x-amz-security-token:session-token-example
+
+host;x-amz-date;x-amz-security-token
+729b1dd623721f412b5b4b7f04b75400b6d6e35f7720f85771cdaab723a09402

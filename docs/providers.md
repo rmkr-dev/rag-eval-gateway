@@ -1,7 +1,8 @@
 # Providers and streaming
 
 Every provider plugs into one SPI. The `type` of a provider entry picks the adapter, so adding
-another OpenAI-compatible service, or another Anthropic or Gemini account, is configuration only.
+another OpenAI-compatible service, or another Anthropic, Gemini or Bedrock account, is
+configuration only.
 
 ```mermaid
 flowchart LR
@@ -11,7 +12,8 @@ flowchart LR
     T -->|openai-compatible| O[OpenAI chat completions]
     T -->|anthropic| A[Messages API]
     T -->|gemini| G[generateContent]
-    O & A & G --> U[Unified reply<br/>or chunk stream]
+    T -->|bedrock| B[Bedrock Converse<br/>SigV4 signed]
+    O & A & G & B --> U[Unified reply<br/>or chunk stream]
     U --> C
     C -->|JSON or SSE| App
     C -.-> Obs[CallObserver<br/>usage, time to first token, total]
@@ -22,6 +24,7 @@ flowchart LR
 | `openai-compatible` | OpenAI chat completions | `Authorization: Bearer <key>` | `/chat/completions` |
 | `anthropic` | Anthropic Messages | `x-api-key: <key>`, plus `anthropic-version: 2023-06-01` | `/v1/messages` |
 | `gemini` | Gemini `generateContent` | `x-goog-api-key: <key>` | `/models` + `/{model}:generateContent` |
+| `bedrock` | Bedrock Converse | SigV4 from `aws`, or `Authorization: Bearer <api-key>` | `/model` + `/{modelId}/converse` |
 
 `api-key-header`, `api-key-prefix`, `chat-path` and `headers` override any default, for example
 to go through a corporate proxy or to pin another `anthropic-version`.
@@ -51,11 +54,20 @@ gateway:
       type: gemini
       base-url: https://generativelanguage.googleapis.com/v1beta
       api-key: ${GEMINI_API_KEY}
+    bedrock:
+      type: bedrock                  # base-url defaults to bedrock-runtime.<region>.amazonaws.com
+      aws:
+        region: us-east-1
+        access-key-id: ${AWS_ACCESS_KEY_ID}
+        secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+        session-token: ${AWS_SESSION_TOKEN:}   # only for temporary credentials
   models:
     chat-default:
       targets:
         - provider: anthropic
           model: claude-sonnet-4-5
+        - provider: bedrock
+          model: anthropic.claude-3-5-sonnet-20240620-v1:0   # model id, inference profile id or ARN
         - provider: gemini
           model: gemini-2.5-flash
         - provider: openrouter
@@ -64,19 +76,19 @@ gateway:
 
 ## How native APIs are mapped
 
-| Unified | Anthropic | Gemini |
-|---|---|---|
-| `system` / `developer` messages | joined into `system` | `systemInstruction` |
-| `assistant` role | `assistant` | `model` |
-| `max_tokens` | `max_tokens`, always sent: caller value, else `default-max-tokens`, else 4096 | `generationConfig.maxOutputTokens` when set |
-| `temperature` | `temperature` | `generationConfig.temperature` |
-| `prompt_tokens` | `input_tokens` + cache reads + cache writes | `promptTokenCount` |
-| `completion_tokens` | `output_tokens` | `candidatesTokenCount` + `thoughtsTokenCount` |
-| `cache_read_tokens` / `cache_write_tokens` | `cache_read_input_tokens` / `cache_creation_input_tokens` | `cachedContentTokenCount` / none |
-| `finish_reason` | `end_turn` → `stop`, `max_tokens` → `length`, `tool_use` → `tool_calls`, `refusal` → `content_filter` | `STOP` → `stop`, `MAX_TOKENS` → `length`, safety reasons → `content_filter` |
+| Unified | Anthropic | Gemini | Bedrock Converse |
+|---|---|---|---|
+| `system` / `developer` messages | joined into `system` | `systemInstruction` | `system` text blocks |
+| `assistant` role | `assistant` | `model` | `assistant` |
+| `max_tokens` | `max_tokens`, always sent: caller value, else `default-max-tokens`, else 4096 | `generationConfig.maxOutputTokens` when set | `inferenceConfig.maxTokens` when set |
+| `temperature` | `temperature` | `generationConfig.temperature` | `inferenceConfig.temperature` |
+| `prompt_tokens` | `input_tokens` + cache reads + cache writes | `promptTokenCount` | `inputTokens` + cache reads + cache writes |
+| `completion_tokens` | `output_tokens` | `candidatesTokenCount` + `thoughtsTokenCount` | `outputTokens` |
+| `cache_read_tokens` / `cache_write_tokens` | `cache_read_input_tokens` / `cache_creation_input_tokens` | `cachedContentTokenCount` / none | `cacheReadInputTokens` / `cacheWriteInputTokens` |
+| `finish_reason` | `end_turn` → `stop`, `max_tokens` → `length`, `tool_use` → `tool_calls`, `refusal` → `content_filter` | `STOP` → `stop`, `MAX_TOKENS` → `length`, safety reasons → `content_filter` | `end_turn` → `stop`, `max_tokens` → `length`, `tool_use` → `tool_calls`, `guardrail_intervened` → `content_filter` |
 
 Other roles, such as `tool`, are rejected with 400 before any call to a native provider.
-Gemini thought summaries are left out of the answer. OpenAI-compatible providers report
+Gemini thought summaries and Bedrock reasoning blocks are left out of the answer. OpenAI-compatible providers report
 `cache_read_tokens` from `prompt_tokens_details.cached_tokens`.
 
 ## Streaming
@@ -122,8 +134,8 @@ data: [DONE]
 - After the first token the gateway is committed. An upstream failure ends the stream with one
   `data: {"error":{"type":"upstream_error","code":"transient","provider":"..."}}` event and no
   `[DONE]`, so a cut-off answer cannot be mistaken for a complete one.
-- OpenAI-compatible calls ask for usage with `stream_options.include_usage`; Anthropic and
-  Gemini report it in their own events. The usage chunk is sent whenever the provider gave
+- OpenAI-compatible calls ask for usage with `stream_options.include_usage`; Anthropic,
+  Gemini and Bedrock report it in their own events. The usage chunk is sent whenever the provider gave
   counts.
 - `read-timeout` covers the wait for the response headers and then the longest silence allowed
   between two events, so long answers are never cut off by a total timeout.
@@ -136,8 +148,36 @@ provider and model, failed attempts, usage, finish reason, time to first token a
 It holds no prompt or answer text. Beans implementing `CallObserver` receive it; built-in cost
 and latency storage (milestone 4) is one such observer.
 
-## Not yet
+## Bedrock
 
-AWS Bedrock has no native adapter yet. A `bedrock` provider can be configured, and aliases
-skip past it to their next target. It needs SigV4 signing and the AWS SDK, so it gets its own
-change after cost and latency tracking.
+Bedrock calls are signed with AWS Signature Version 4 by the gateway itself, without the AWS
+SDK. The signer is tested against the official AWS SigV4 test suite.
+
+```mermaid
+sequenceDiagram
+    participant GW as Gateway
+    participant BR as bedrock-runtime
+    Note over GW: JSON body for /model/{modelId}/converse
+    GW->>GW: SigV4: canonical request, string to sign,<br/>key from secret, date, region, "bedrock"
+    GW->>BR: POST with Authorization, X-Amz-Date,<br/>X-Amz-Security-Token
+    alt converse
+        BR-->>GW: JSON answer and usage
+    else converse-stream
+        BR-->>GW: binary event frames (checksummed)
+        Note over GW: contentBlockDelta → text chunk<br/>messageStop → finish reason<br/>metadata → usage
+    end
+```
+
+- Credentials come from `aws.access-key-id`, `aws.secret-access-key` and the optional
+  `aws.session-token`. Blank keys fall back to `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+  and `AWS_SESSION_TOKEN`. Missing region or keys fail startup. Keys never appear in logs,
+  errors or `toString`.
+- A Bedrock API key in `api-key` is sent as `Authorization: Bearer` instead, with no signing.
+- Model ids, inference profile ids and ARNs all work as `model`; `:` and `/` are encoded.
+- `base-url` can point at a VPC endpoint; `aws.region` still sets the signing region.
+- Errors follow the usual [routing rules](routing.md): `ValidationException` (400, 413) is a
+  request failure, 408, 429 and 5xx are retried, 403, 404 and 424 fall back at once. In a
+  stream, `throttlingException`, `serviceUnavailableException`, `internalServerException` and
+  `modelStreamErrorException` are transient, and `validationException` counts as a 400.
+- Credentials are static: rotate them in the secret store. Instance roles and web identity
+  are not read.

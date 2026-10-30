@@ -63,6 +63,8 @@ public record GatewayProperties(
      *     {@code HTTP-Referer} or a pinned {@code anthropic-version}
      * @param defaultMaxTokens completion cap sent when the caller gives none; Anthropic
      *     requires one, so it falls back to {@value #ANTHROPIC_DEFAULT_MAX_TOKENS} there
+     * @param aws region and credentials for {@code bedrock} providers; {@code base-url}
+     *     defaults to the region's {@code bedrock-runtime} endpoint
      */
     public record Provider(
             @NotNull @DefaultValue("openai-compatible") ProviderType type,
@@ -74,11 +76,16 @@ public record GatewayProperties(
             @NotNull @DefaultValue("60s") Duration readTimeout,
             @NotBlank String chatPath,
             @DefaultValue Map<String, String> headers,
-            @Positive Integer defaultMaxTokens) {
+            @Positive Integer defaultMaxTokens,
+            @Valid Aws aws) {
 
         public static final int ANTHROPIC_DEFAULT_MAX_TOKENS = 4096;
 
         public Provider {
+            if (type == ProviderType.BEDROCK && (baseUrl == null || baseUrl.isBlank())
+                    && aws != null && aws.region() != null && !aws.region().isBlank()) {
+                baseUrl = "https://bedrock-runtime." + aws.region().strip() + ".amazonaws.com";
+            }
             if (type != null) {
                 if (apiKeyHeader == null) {
                     apiKeyHeader = switch (type) {
@@ -88,17 +95,49 @@ public record GatewayProperties(
                     };
                 }
                 if (apiKeyPrefix == null) {
-                    apiKeyPrefix = type == ProviderType.OPENAI_COMPATIBLE ? "Bearer " : "";
+                    apiKeyPrefix = type == ProviderType.OPENAI_COMPATIBLE || type == ProviderType.BEDROCK
+                            ? "Bearer " : "";
                 }
                 if (chatPath == null) {
                     chatPath = switch (type) {
                         case ANTHROPIC -> "/v1/messages";
                         case GEMINI -> "/models";
+                        case BEDROCK -> "/model";
                         default -> "/chat/completions";
                     };
                 }
             }
             headers = headers == null ? Map.of() : Map.copyOf(headers);
+        }
+
+        /** Keeps keys out of logs and error messages. */
+        @Override
+        public String toString() {
+            return "Provider[type=" + type + ", baseUrl=" + baseUrl + ", apiKey=" + (apiKey == null ? null : "***")
+                    + ", aws=" + aws + "]";
+        }
+    }
+
+    /**
+     * AWS settings for a {@code bedrock} provider. Requests are signed with SigV4 using these
+     * credentials; blank keys fall back to the standard {@code AWS_ACCESS_KEY_ID},
+     * {@code AWS_SECRET_ACCESS_KEY} and {@code AWS_SESSION_TOKEN} environment variables. Not
+     * needed when the provider has a Bedrock {@code api-key}, which is sent as a bearer token
+     * instead.
+     *
+     * @param region AWS region, for example {@code us-east-1}; used for signing and the
+     *     default endpoint
+     * @param accessKeyId access key id
+     * @param secretAccessKey secret access key, never logged
+     * @param sessionToken session token for temporary credentials, never logged
+     */
+    public record Aws(String region, String accessKeyId, String secretAccessKey, String sessionToken) {
+
+        @Override
+        public String toString() {
+            return "Aws[region=" + region + ", accessKeyId=" + (accessKeyId == null ? null : "***")
+                    + ", secretAccessKey=" + (secretAccessKey == null ? null : "***")
+                    + ", sessionToken=" + (sessionToken == null ? null : "***") + "]";
         }
     }
 

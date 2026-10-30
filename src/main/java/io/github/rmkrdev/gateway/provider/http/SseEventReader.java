@@ -9,8 +9,6 @@ import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Reads server-sent events from a response body. Each read is guarded by an idle timeout: if
@@ -19,8 +17,6 @@ import java.util.concurrent.TimeUnit;
  * the idle one.
  */
 public final class SseEventReader implements Closeable {
-
-    private static final ScheduledThreadPoolExecutor WATCHDOG = watchdog();
 
     private final InputStream body;
     private final BufferedReader reader;
@@ -69,7 +65,7 @@ public final class SseEventReader implements Closeable {
     }
 
     private String readLine() throws IOException {
-        ScheduledFuture<?> guard = WATCHDOG.schedule(this::expire, idleTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> guard = IdleWatchdog.guard(idleTimeout, this::expire);
         try {
             return reader.readLine();
         } catch (IOException e) {
@@ -98,15 +94,5 @@ public final class SseEventReader implements Closeable {
         } catch (IOException ignored) {
             // nothing left to release
         }
-    }
-
-    private static ScheduledThreadPoolExecutor watchdog() {
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, runnable -> {
-            Thread thread = new Thread(runnable, "provider-stream-watchdog");
-            thread.setDaemon(true);
-            return thread;
-        });
-        executor.setRemoveOnCancelPolicy(true);
-        return executor;
     }
 }

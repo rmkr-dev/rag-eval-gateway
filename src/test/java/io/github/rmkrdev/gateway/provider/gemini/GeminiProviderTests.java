@@ -54,7 +54,7 @@ class GeminiProviderTests {
     private GeminiProvider provider(Integer defaultMaxTokens) {
         return new GeminiProvider("gemini", new GatewayProperties.Provider(ProviderType.GEMINI,
                 upstream.baseUrl() + "/v1beta/", "g-key", null, null, Duration.ofSeconds(2), Duration.ofSeconds(5),
-                null, Map.of(), defaultMaxTokens));
+                null, Map.of(), defaultMaxTokens, null));
     }
 
     @Test

@@ -12,15 +12,15 @@ flowchart LR
     App[Your app] -->|one API| GW[rag-eval-gateway]
     GW --> R{Model alias<br/>routing and fallback}
     R --> OC[OpenAI-compatible<br/>OpenAI, Azure OpenAI, OpenRouter,<br/>Together, Groq, Mistral, Modal,<br/>Ollama, vLLM]
-    R --> N[Native adapters<br/>Anthropic, Gemini]
+    R --> N[Native adapters<br/>Anthropic, Gemini,<br/>AWS Bedrock]
     GW --> DB[(Calls, tokens, cost,<br/>latency)]
     DB --> Rep[Reports API<br/>and dashboard]
 ```
 
 > Status: early development. Chat calls route through any OpenAI-compatible provider and
-> native Anthropic and Gemini adapters, with retries, fallback and streaming. Every call's
-> cost and latency is stored in the gateway's own database, with reports and a dashboard on
-> top. Entra authentication lands next. See the [roadmap](docs/roadmap.md).
+> native Anthropic, Gemini and AWS Bedrock adapters, with retries, fallback and streaming.
+> Every call's cost and latency is stored in the gateway's own database, with reports and a
+> dashboard on top. Entra authentication lands next. See the [roadmap](docs/roadmap.md).
 
 ## Run it
 
@@ -113,7 +113,8 @@ docker run -p 8080:8080 rag-eval-gateway
 
 Callers ask for a model alias. Each alias maps to an ordered list of provider targets, and
 later targets are fallbacks. Any OpenAI-compatible service needs only configuration; Anthropic
-and Gemini need only `type`. Examples and the native mappings are in
+and Gemini need only `type`, and Bedrock `type` plus `aws` region and credentials. Examples and
+the native mappings are in
 [docs/providers.md](docs/providers.md).
 
 ```yaml
@@ -141,21 +142,22 @@ gateway:
 
 | Provider property | Default | Purpose |
 |---|---|---|
-| `type` | `openai-compatible` | Wire protocol: `openai-compatible`, `anthropic`, `gemini` |
-| `base-url` | required | API base URL |
+| `type` | `openai-compatible` | Wire protocol: `openai-compatible`, `anthropic`, `gemini`, `bedrock` |
+| `base-url` | required | API base URL; Bedrock defaults to the region's `bedrock-runtime` endpoint |
 | `api-key` | none | Secret from the environment or Key Vault |
 | `api-key-header` | per type | `Authorization`, `x-api-key` or `x-goog-api-key` |
-| `api-key-prefix` | per type | `Bearer ` for OpenAI-compatible, empty otherwise |
+| `api-key-prefix` | per type | `Bearer ` for OpenAI-compatible and Bedrock, empty otherwise |
 | `connect-timeout` / `read-timeout` | `5s` / `60s` | Upstream timeouts; when streaming, `read-timeout` is the longest gap between events |
-| `chat-path` | per type | `/chat/completions`, `/v1/messages` or `/models` |
+| `chat-path` | per type | `/chat/completions`, `/v1/messages`, `/models` or `/model` |
 | `headers` | none | Extra headers on every call, for example OpenRouter's `HTTP-Referer` |
 | `default-max-tokens` | none | Completion cap when the caller sends none; Anthropic falls back to 4096 |
+| `aws.region`, `aws.access-key-id`, `aws.secret-access-key`, `aws.session-token` | none | Bedrock SigV4 signing; blank keys fall back to the standard `AWS_*` variables |
 
 Azure OpenAI works through its v1 API: `base-url: https://<resource>.openai.azure.com/openai/v1`,
 `api-key-header: api-key`, `api-key-prefix: ""`, and the deployment name as `model`.
 
-Startup fails if an alias points at a provider that is not configured. A `bedrock` provider
-can be configured but has no adapter yet, so aliases skip past it to the next target.
+Startup fails if an alias points at a provider that is not configured, or if a Bedrock provider
+has no region or credentials.
 
 ## License
 

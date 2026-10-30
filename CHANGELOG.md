@@ -8,6 +8,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Native AWS Bedrock adapter (`type: bedrock`) on the Converse API: `/model/{modelId}/converse`
+  for plain calls and `/converse-stream` for streaming, with the binary event stream frames
+  (checksums verified) turned into the same SSE chunks as every other provider. System
+  messages go to `system`, `max_tokens` and `temperature` to `inferenceConfig`, usage
+  including cache reads and writes feeds cost tracking, and stop reasons map to the OpenAI
+  vocabulary.
+- Hand-written AWS SigV4 signing with no AWS SDK dependency, tested against the official AWS
+  SigV4 test suite and a Bedrock request checked with botocore.
+- `aws.region`, `aws.access-key-id`, `aws.secret-access-key` and `aws.session-token` provider
+  settings; blank keys fall back to the standard `AWS_*` environment variables, and
+  `base-url` defaults to the region's `bedrock-runtime` endpoint. A Bedrock `api-key` is sent
+  as a bearer token instead. Missing region or keys fail startup; keys are never logged.
+- Bedrock errors follow the existing routing rules, including `fallback-on-bad-request` for
+  400, 413 and 422 and stream exceptions before the first token.
+
 - `fallback-on-bad-request` now also covers 413 and 422: with the switch on, a 400, 413 or
   422 from one target moves to the next, and the last target's status and message reach the
   caller instead of a 502. Off by default, so nothing changes for aliases without it. See
@@ -63,6 +78,9 @@ All notable changes to this project are documented here. The format follows
 - [docs/providers.md](docs/providers.md) with example configuration and the native mappings.
 
 ### Changed
+
+- `bedrock` providers are no longer skipped by fallback; they call Bedrock.
+- Provider `toString` no longer shows API keys or AWS credentials.
 
 - `gateway.reports.enabled` and `gateway.reports.dashboard.enabled` default to `false` until
   Entra auth protects them; set both to `true` to serve `/v1/reports/*` and `/dashboard`.
