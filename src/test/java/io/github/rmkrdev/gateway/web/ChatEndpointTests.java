@@ -32,6 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 @SpringBootTest(properties = {
+        "entra.security.enabled=false",
         "gateway.retry.max-attempts=2",
         "gateway.retry.initial-backoff=10ms",
         "gateway.retry.max-backoff=20ms",

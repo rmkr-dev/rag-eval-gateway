@@ -23,8 +23,8 @@ flowchart LR
 | 3 | Native Anthropic and Gemini adapters, server-sent event streaming for every adapter, call outcomes with time to first token | Done |
 | 4 | Per-call cost (config price table) and latency (time to first token, total) stored in Postgres, H2 for dev, Flyway | Done |
 | 5 | Summary REST endpoints by client, model, provider and time range with p50/p95/p99, Thymeleaf dashboard | Done |
-| 6 | Entra auth via `spring-security-jwt-starter` 1.0.0 | Next |
-| 7 | Per-client token budgets and rate limits enforced from stored usage | Planned |
+| 6 | Entra auth via `spring-security-jwt-starter` 1.0.0: `Gateway.Call` and `Gateway.Reports` roles, client from the token, reports and dashboard on by default | Done |
+| 7 | Per-client token budgets and rate limits enforced from stored usage | Next |
 | 8 | PII redaction for prompts and logs | Planned |
 | 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Planned |
 | 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, probes, preflight script, deploy workflow | Planned |
@@ -43,7 +43,8 @@ AWS Bedrock moved out of milestone 3 and shipped before milestone 6, behind the 
 signs requests itself instead of pulling in the AWS SDK. See
 [providers.md](providers.md#bedrock).
 
-Routing by client and by cost builds on the alias routing from milestone 2 once callers are
-identified (milestone 6) and costs are stored (milestone 4).
+Routing by client and by cost builds on the alias routing from milestone 2, now that callers
+are identified from their tokens (milestone 6) and costs are stored (milestone 4). See
+[auth.md](auth.md).
 
 Micrometer metrics stay optional. The built-in store is the main path for cost and latency.

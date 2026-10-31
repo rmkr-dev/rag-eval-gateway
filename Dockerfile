@@ -4,7 +4,15 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 COPY pom.xml .
 COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -q -DskipTests -Djacoco.skip=true package \
+# spring-security-jwt-starter comes from GitHub Packages, which needs a token. Pass a Maven
+# settings file with a server named github-entra-security, and the token if that file reads it
+# from ${env.GITHUB_TOKEN}:
+#   docker build --secret id=maven-settings,src=$HOME/.m2/settings.xml \
+#                --secret id=github-token,env=GITHUB_TOKEN .
+RUN --mount=type=cache,target=/root/.m2/repository \
+    --mount=type=secret,id=maven-settings,target=/root/.m2/settings.xml \
+    --mount=type=secret,id=github-token,env=GITHUB_TOKEN \
+    mvn -B -ntp -q -DskipTests -Djacoco.skip=true package \
  && java -Djarmode=tools -jar target/rag-eval-gateway-*.jar extract --destination /app
 
 FROM eclipse-temurin:21-jre

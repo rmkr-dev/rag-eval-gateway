@@ -2,6 +2,8 @@ package io.github.rmkrdev.gateway.web;
 
 import io.github.rmkrdev.gateway.config.GatewayProperties;
 import java.util.List;
+import io.github.rmkrdev.gateway.auth.GatewayRoles;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Lists the model aliases callers can use. Never exposes provider keys or base URLs. */
 @RestController
 @RequestMapping("/v1/models")
+@Secured(GatewayRoles.CALLER)
 class ModelsController {
 
     private final GatewayProperties properties;

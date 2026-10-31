@@ -3,6 +3,8 @@ package io.github.rmkrdev.gateway.web;
 import io.github.rmkrdev.gateway.api.ChatRequest;
 import io.github.rmkrdev.gateway.api.ChatResponse;
 import io.github.rmkrdev.gateway.api.Usage;
+import io.github.rmkrdev.gateway.auth.CallerIdentity;
+import io.github.rmkrdev.gateway.auth.GatewayRoles;
 import io.github.rmkrdev.gateway.call.CallObservers;
 import io.github.rmkrdev.gateway.call.CallOutcome;
 import io.github.rmkrdev.gateway.provider.ProviderReply;
@@ -23,6 +25,7 @@ import java.util.UUID;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -34,9 +37,13 @@ import tools.jackson.databind.json.JsonMapper;
  * The one chat endpoint callers use, whatever provider ends up serving the call. With
  * {@code "stream": true} the answer comes back as server-sent events; routing finishes, and
  * errors are still plain problem responses, until the first chunk is ready.
+ * <p>
+ * Needs {@link GatewayRoles#CALLER}. The client recorded for the call comes from the token;
+ * {@code X-Gateway-Client} counts only while auth is off.
  */
 @RestController
 @RequestMapping("/v1/chat/completions")
+@Secured(GatewayRoles.CALLER)
 class ChatController {
 
     static final String CALLS_HEADER = "X-Gateway-Calls";
@@ -45,11 +52,13 @@ class ChatController {
     private final ChatRouter router;
     private final CallObservers observers;
     private final JsonMapper json;
+    private final CallerIdentity callers;
 
-    ChatController(ChatRouter router, CallObservers observers, JsonMapper json) {
+    ChatController(ChatRouter router, CallObservers observers, JsonMapper json, CallerIdentity callers) {
         this.router = router;
         this.observers = observers;
         this.json = json;
+        this.callers = callers;
     }
 
     /**
@@ -60,7 +69,7 @@ class ChatController {
     ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request,
             @RequestHeader(name = CLIENT_HEADER, required = false) String clientHeader,
             HttpServletResponse response) throws IOException {
-        Call call = new Call("gw-" + UUID.randomUUID(), Instant.now(), ClientIds.of(clientHeader), System.nanoTime());
+        Call call = new Call("gw-" + UUID.randomUUID(), Instant.now(), callers.client(clientHeader), System.nanoTime());
         try {
             if (request.streaming()) {
                 stream(call, request, response);

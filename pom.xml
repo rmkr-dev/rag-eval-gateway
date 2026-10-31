@@ -34,7 +34,26 @@
         <java.version>21</java.version>
         <jacoco.version>0.8.15</jacoco.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <entra-security.version>1.0.0</entra-security.version>
     </properties>
+
+    <!--
+        spring-security-jwt-starter is published to GitHub Packages, which needs a token even
+        for public packages. Add a server with this id to ~/.m2/settings.xml: a personal access
+        token with read:packages locally, GITHUB_TOKEN with packages: read in Actions.
+    -->
+    <repositories>
+        <repository>
+            <id>github-entra-security</id>
+            <url>https://maven.pkg.github.com/rmkr-dev/spring-security-jwt-starter</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -48,6 +67,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.rmkr-dev</groupId>
+            <artifactId>entra-security-spring-boot-starter</artifactId>
+            <version>${entra-security.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -89,6 +113,17 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.rmkr-dev</groupId>
+            <artifactId>entra-security-test</artifactId>
+            <version>${entra-security.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

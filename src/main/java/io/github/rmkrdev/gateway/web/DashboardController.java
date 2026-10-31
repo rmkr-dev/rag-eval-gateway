@@ -1,5 +1,6 @@
 package io.github.rmkrdev.gateway.web;
 
+import io.github.rmkrdev.gateway.auth.GatewayRoles;
 import io.github.rmkrdev.gateway.report.Bucket;
 import io.github.rmkrdev.gateway.report.InvalidReportException;
 import io.github.rmkrdev.gateway.report.ReportQuery;
@@ -10,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,12 +19,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * Server-rendered dashboard of cost, tokens and latency by client, model and provider. Plain
- * HTML and inline CSS and SVG, no scripts. Not authenticated until Entra arrives.
+ * HTML and inline CSS and SVG, no scripts. Needs {@link GatewayRoles#REPORTS}. Times default
+ * to UTC.
  */
 @Controller
 @ConditionalOnBooleanProperty(name = "gateway.tracking.enabled", matchIfMissing = true)
-@ConditionalOnBooleanProperty("gateway.reports.enabled")
-@ConditionalOnBooleanProperty("gateway.reports.dashboard.enabled")
+@ConditionalOnBooleanProperty(name = "gateway.reports.enabled", matchIfMissing = true)
+@ConditionalOnBooleanProperty(name = "gateway.reports.dashboard.enabled", matchIfMissing = true)
+@Secured(GatewayRoles.REPORTS)
 class DashboardController {
 
     static final List<String> RANGES = List.of("1h", "6h", "24h", "7d", "30d");
