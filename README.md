@@ -9,7 +9,7 @@ tracking, per-client budgets, PII redaction and light eval hooks.
 
 ```mermaid
 flowchart LR
-    App[Your app] -->|one API| GW[rag-eval-gateway]
+    App[Your app] -->|one API<br/>Entra token| GW[rag-eval-gateway]
     GW --> R{Model alias<br/>routing and fallback}
     R --> OC[OpenAI-compatible<br/>OpenAI, Azure OpenAI, OpenRouter,<br/>Together, Groq, Mistral, Modal,<br/>Ollama, vLLM]
     R --> N[Native adapters<br/>Anthropic, Gemini,<br/>AWS Bedrock]
@@ -20,20 +20,42 @@ flowchart LR
 > Status: early development. Chat calls route through any OpenAI-compatible provider and
 > native Anthropic, Gemini and AWS Bedrock adapters, with retries, fallback and streaming.
 > Every call's cost and latency is stored in the gateway's own database, with reports and a
-> dashboard on top. Entra authentication lands next. See the [roadmap](docs/roadmap.md).
+> dashboard on top, all behind Entra ID authentication. Budgets and rate limits land next. See
+> the [roadmap](docs/roadmap.md).
 
 ## Run it
 
+Locally, without Entra:
+
 ```bash
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 curl localhost:8080/v1/models
 curl localhost:8080/actuator/health
 ```
 
+The starter comes from GitHub Packages, so Maven needs a server `github-entra-security` in
+`~/.m2/settings.xml` with a token that has `read:packages`
+([how](https://github.com/rmkr-dev/spring-security-jwt-starter/blob/main/docs/releasing.md#installing)).
+
+## Authentication
+
+Everywhere else every call needs an Entra ID access token. Set the tenant and the gateway's
+app registration:
+
+```bash
+export ENTRA_SECURITY_TENANTID=<tenant-id> ENTRA_SECURITY_CLIENTID=<gateway-client-id>
+```
+
+Callers need the `Gateway.Call` app role, and reports and the dashboard need
+`Gateway.Reports`. Without a token the answer is `401`, without the role `403`. The client
+recorded for each call comes from the token (`azp` or `appid`), not from a header. Roles,
+client names and the local profile are in [docs/auth.md](docs/auth.md).
+
 ## Call it
 
 ```bash
-curl localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -d '{
+curl localhost:8080/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{
   "model": "chat-default",
   "messages": [{"role": "user", "content": "What is retrieval augmented generation?"}],
   "max_tokens": 200
@@ -59,7 +81,8 @@ Add `"stream": true` to get server-sent events in the OpenAI chunk format, endin
 `data: [DONE]`, from any provider:
 
 ```bash
-curl -N localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -d '{
+curl -N localhost:8080/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{
   "model": "chat-default", "stream": true,
   "messages": [{"role": "user", "content": "What is retrieval augmented generation?"}]
 }'
@@ -68,8 +91,8 @@ curl -N localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -
 ## Track cost and latency
 
 Every call is priced from a config price table and stored with its tokens, time to first
-token and total time, in Postgres or in-memory H2 for local runs. Name the caller with
-`X-Gateway-Client` and look a call up by its id:
+token and total time, in Postgres or in-memory H2 for local runs, under the client named by
+the caller's token. Look a call up by its id:
 
 ```yaml
 gateway:
@@ -82,7 +105,7 @@ gateway:
 ```
 
 ```bash
-curl localhost:8080/v1/calls/gw-6f1c...
+curl -H "Authorization: Bearer $TOKEN" localhost:8080/v1/calls/gw-6f1c...
 ```
 
 Prices, storage, retention and the stored fields are in [docs/tracking.md](docs/tracking.md).
@@ -93,21 +116,24 @@ Cost, tokens, errors and p50/p95/p99 latency by client, model or provider, as JS
 hour or day, and a built-in dashboard at `/dashboard`:
 
 ```bash
-curl 'localhost:8080/v1/reports/summary?group_by=client&range=7d'
-curl 'localhost:8080/v1/reports/series?bucket=day&range=30d&zone=Asia/Kolkata'
+curl -H "Authorization: Bearer $TOKEN" 'localhost:8080/v1/reports/summary?group_by=client&range=7d'
+curl -H "Authorization: Bearer $TOKEN" 'localhost:8080/v1/reports/series?bucket=day&range=30d&zone=Asia/Kolkata'
 ```
 
-Both are off by default until Entra auth puts sign-in in front of them. Turn them on with
-`gateway.reports.enabled=true` and `gateway.reports.dashboard.enabled=true`, on a private
-network only. Parameters, limits and how percentiles are computed are in
+Both are on by default and need the `Gateway.Reports` app role. The dashboard shows UTC
+unless `?zone=` says otherwise. Parameters, limits and how percentiles are computed are in
 [docs/reports.md](docs/reports.md).
 
 ## Run with Docker
 
 ```bash
-docker build -t rag-eval-gateway .
-docker run -p 8080:8080 rag-eval-gateway
+docker build -t rag-eval-gateway \
+  --secret id=maven-settings,src=$HOME/.m2/settings.xml --secret id=github-token,env=GITHUB_TOKEN .
+docker run -p 8080:8080 -e ENTRA_SECURITY_TENANTID=... -e ENTRA_SECURITY_CLIENTID=... rag-eval-gateway
 ```
+
+The secrets give the build access to GitHub Packages and never end up in the image. Add
+`-e SPRING_PROFILES_ACTIVE=local` instead of the Entra ids to run without auth.
 
 ## Configure providers and aliases
 

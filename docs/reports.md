@@ -4,16 +4,9 @@ Reports read the `gateway_call` table that [tracking](tracking.md) fills. There 
 for scripts and a server-rendered dashboard for people. Neither needs anything besides the
 gateway and its database.
 
-> Off by default until Entra auth (milestone 6) puts sign-in in front of them. To use them
-> before then, turn them on only where the gateway is on a private network:
->
-> ```yaml
-> gateway:
->   reports:
->     enabled: true
->     dashboard:
->       enabled: true
-> ```
+Both are on by default and need the `GATEWAY_REPORTS` role (Entra app role
+`Gateway.Reports`); see [auth.md](auth.md). Turn either off with
+`gateway.reports.enabled=false` or `gateway.reports.dashboard.enabled=false`.
 
 ```mermaid
 flowchart LR

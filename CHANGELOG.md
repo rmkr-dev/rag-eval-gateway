@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Entra ID authentication through `spring-security-jwt-starter` 1.0.0 (from GitHub Packages):
+  every endpoint except health and info needs a valid access token, with `401` and `403`
+  problem responses and `Server-Timing: auth;dur=...`. See [docs/auth.md](docs/auth.md).
+- Two roles checked with `@Secured`: `GATEWAY_CALLER` (app role `Gateway.Call`) for chat,
+  models and the caller's own calls, and `GATEWAY_REPORTS` (app role `Gateway.Reports`) for
+  reports, the dashboard and every call.
+- The client recorded for each call comes from the token: `azp`/`appid`, or the claim in
+  `gateway.auth.client-claim`, with optional readable names in `gateway.auth.client-names`.
+- `local` profile that turns auth off for local development, with a startup warning.
+
 - Native AWS Bedrock adapter (`type: bedrock`) on the Converse API: `/model/{modelId}/converse`
   for plain calls and `/converse-stream` for streaming, with the binary event stream frames
   (checksums verified) turned into the same SSE chunks as every other provider. System
@@ -78,6 +88,14 @@ All notable changes to this project are documented here. The format follows
 - [docs/providers.md](docs/providers.md) with example configuration and the native mappings.
 
 ### Changed
+
+- `gateway.reports.enabled` and `gateway.reports.dashboard.enabled` default to `true` again,
+  now that auth protects them. The dashboard still defaults to UTC.
+- `X-Gateway-Client` is ignored while auth is on; it names the caller only with auth off.
+- `GET /v1/calls/{id}` returns `404` for another client's call unless the caller has
+  `GATEWAY_REPORTS`.
+- CI, CodeQL and the Docker build read GitHub Packages with the workflow token; the Dockerfile
+  takes Maven settings and the token as build secrets.
 
 - `bedrock` providers are no longer skipped by fallback; they call Bedrock.
 - Provider `toString` no longer shows API keys or AWS credentials.

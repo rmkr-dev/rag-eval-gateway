@@ -10,7 +10,7 @@ sequenceDiagram
     participant P as Provider
     participant Q as Write queue
     participant DB as Postgres / H2
-    App->>GW: POST /v1/chat/completions<br/>X-Gateway-Client: billing-api
+    App->>GW: POST /v1/chat/completions<br/>Authorization: Bearer (Entra token)
     GW->>P: routed call (retries, fallback)
     P-->>GW: answer + token usage
     GW-->>App: answer
@@ -30,7 +30,7 @@ erDiagram
     gateway_call {
         varchar id PK "gw-... returned to the caller"
         timestamptz started_at
-        varchar client "X-Gateway-Client, or anonymous"
+        varchar client "from the token: azp/appid or a mapped name"
         varchar model_alias
         varchar provider "null when no provider answered"
         varchar provider_model
@@ -156,7 +156,10 @@ return 404 for a moment.
 
 ## Callers
 
-Until Entra authentication arrives (milestone 6), callers name themselves with the
-`X-Gateway-Client` header: letters, digits, `.`, `_`, `:` and `-`, up to 64 characters.
-Anything else is stored as `anonymous`. Once authentication is on, the client comes from the
-token instead of the header.
+The client comes from the validated Entra token: the calling application id (`azp` or
+`appid`), or another claim, optionally mapped to a readable name such as `billing-api`. See
+[auth.md](auth.md#who-the-caller-is). Values that are not 1-64 letters, digits, `.`, `_`, `:`
+or `-` are stored as `anonymous`.
+
+Only with auth off (the `local` profile) do callers name themselves with the
+`X-Gateway-Client` header, under the same rules.
