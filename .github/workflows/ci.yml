@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read  # spring-security-jwt-starter comes from GitHub Packages
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -25,9 +26,14 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+          server-id: github-entra-security
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
 
       - name: Build and test
         run: mvn -B -ntp verify
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload coverage report
         if: always()
@@ -54,14 +60,39 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Build image
-        run: docker build --tag rag-eval-gateway:ci .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > "$RUNNER_TEMP/maven-settings.xml" <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>github-entra-security</id>
+                <username>${GITHUB_ACTOR}</username>
+                <password>\${env.GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+          docker build --tag rag-eval-gateway:ci \
+            --secret id=maven-settings,src="$RUNNER_TEMP/maven-settings.xml" \
+            --secret id=github-token,env=GITHUB_TOKEN .
 
+      # Auth is on, as in production. The ids are placeholders: health stays public and the
+      # API must answer 401 without a token.
       - name: Smoke test
         run: |
-          docker run -d --name gateway -p 8080:8080 rag-eval-gateway:ci
+          docker run -d --name gateway -p 8080:8080 \
+            -e ENTRA_SECURITY_TENANTID=00000000-0000-4000-8000-000000000000 \
+            -e ENTRA_SECURITY_CLIENTID=00000000-0000-4000-8000-000000000001 \
+            rag-eval-gateway:ci
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:8080/actuator/health/readiness; then
-              echo; docker rm -f gateway >/dev/null; exit 0
+              echo
+              status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/models)
+              docker rm -f gateway >/dev/null
+              if [ "$status" = "401" ]; then exit 0; fi
+              echo "expected 401 from /v1/models without a token, got $status"; exit 1
             fi
             sleep 2
           done

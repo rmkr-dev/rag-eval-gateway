@@ -36,6 +36,24 @@
         <wiremock.version>3.13.2</wiremock.version>
     </properties>
 
+    <!--
+        spring-security-jwt-starter is published to GitHub Packages, which needs a token even
+        for public packages. Add a server with this id to ~/.m2/settings.xml: a personal access
+        token with read:packages locally, GITHUB_TOKEN with packages: read in Actions.
+    -->
+    <repositories>
+        <repository>
+            <id>github-entra-security</id>
+            <url>https://maven.pkg.github.com/rmkr-dev/spring-security-jwt-starter</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
