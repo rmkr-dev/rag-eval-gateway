@@ -10,12 +10,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Wires the reports API. Needs tracking and is off until {@code gateway.reports.enabled=true},
- * because nothing protects it until Entra auth arrives.
+ * Wires the reports API. Needs tracking; on by default, behind Entra auth and
+ * {@code ROLE_GATEWAY_REPORTS}.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnBooleanProperty(name = "gateway.tracking.enabled", matchIfMissing = true)
-@ConditionalOnBooleanProperty("gateway.reports.enabled")
+@ConditionalOnBooleanProperty(name = "gateway.reports.enabled", matchIfMissing = true)
 class ReportsConfiguration {
 
     @Bean

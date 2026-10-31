@@ -1,0 +1,5 @@
+# Local development without Entra: auth is off, every endpoint is open, and callers name
+# themselves with the X-Gateway-Client header. Never use this profile on a shared network.
+entra:
+  security:
+    enabled: false

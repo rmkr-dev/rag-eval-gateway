@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest(properties = {
+        "entra.security.enabled=false",
         "spring.datasource.url=jdbc:h2:mem:tracking;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
         "gateway.retry.max-attempts=1",
         "gateway.models.chat.targets[0].provider=primary",

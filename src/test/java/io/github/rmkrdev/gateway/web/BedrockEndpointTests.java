@@ -37,6 +37,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** Bedrock behind the full gateway: routing, fallback, streaming and cost tracking. */
 @SpringBootTest(properties = {
+        "entra.security.enabled=false",
         "spring.datasource.url=jdbc:h2:mem:bedrock;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
         "gateway.retry.max-attempts=2",
         "gateway.retry.initial-backoff=10ms",

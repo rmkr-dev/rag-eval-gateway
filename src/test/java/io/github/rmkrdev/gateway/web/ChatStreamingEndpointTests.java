@@ -37,6 +37,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest(properties = {
+        "entra.security.enabled=false",
         "gateway.retry.max-attempts=2",
         "gateway.retry.initial-backoff=10ms",
         "gateway.retry.max-backoff=20ms",

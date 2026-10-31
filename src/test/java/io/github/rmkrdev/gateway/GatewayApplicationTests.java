@@ -14,6 +14,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
+        "entra.security.enabled=false",
         "gateway.providers.openrouter.base-url=https://openrouter.example/api/v1",
         "gateway.providers.openrouter.api-key=secret-key-value",
         "gateway.providers.local.base-url=http://ollama.local:11434/v1",

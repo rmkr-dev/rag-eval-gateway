@@ -48,12 +48,28 @@ gateway:
     batch-size: 200
     flush-interval: 1s
     retention: 90d
-  # Reports API and dashboard. Off until Entra auth arrives (milestone 6), because nothing
-  # protects them yet. Turn them on only on a private network.
+  # Reports API and dashboard, for callers with ROLE_GATEWAY_REPORTS. The dashboard shows UTC
+  # unless ?zone= says otherwise.
   reports:
-    enabled: false
+    enabled: true
     default-range: 24h
     max-range: 31d
     max-rows: 500000
     dashboard:
-      enabled: false
+      enabled: true
+  # Caller identity for tracking comes from the validated token: the calling application id
+  # (azp or appid) unless client-claim names another claim. client-names gives ids readable
+  # names in reports, for example "11111111-...": billing-api.
+  auth:
+    client-claim: ""
+    client-names: {}
+
+# Entra ID auth (rmkr-dev/spring-security-jwt-starter). Every endpoint except health and info
+# needs a valid token. Set ENTRA_SECURITY_TENANTID and ENTRA_SECURITY_CLIENTID; startup fails
+# without them. For local runs without Entra use the local profile, which turns auth off.
+entra:
+  security:
+    enabled: true
+    app-role-mappings:
+      "[Gateway.Call]": [GATEWAY_CALLER]
+      "[Gateway.Reports]": [GATEWAY_REPORTS]

@@ -10,10 +10,10 @@ import org.springframework.validation.annotation.Validated;
 
 /**
  * Reports over the stored calls and the built-in dashboard. Both need
- * {@code gateway.tracking.enabled}. There is no authentication until Entra arrives, so both
- * are off by default; turn them on only on a private network until then.
+ * {@code gateway.tracking.enabled}. Both are on by default and need {@code ROLE_GATEWAY_REPORTS}
+ * when Entra auth is on.
  *
- * @param enabled serve {@code /v1/reports/*}; off by default
+ * @param enabled serve {@code /v1/reports/*}; on by default
  * @param defaultRange range used when the caller gives no {@code from} or {@code range}
  * @param maxRange longest range one report may cover
  * @param maxRows most calls one report may read; larger ranges are refused with 400
@@ -22,7 +22,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("gateway.reports")
 public record ReportProperties(
-        @DefaultValue("false") boolean enabled,
+        @DefaultValue("true") boolean enabled,
         @NotNull @DefaultValue("24h") Duration defaultRange,
         @NotNull @DefaultValue("31d") Duration maxRange,
         @Min(1) @DefaultValue("500000") int maxRows,
@@ -31,9 +31,9 @@ public record ReportProperties(
     /**
      * The built-in dashboard.
      *
-     * @param enabled serve {@code /dashboard}; needs the reports API to be enabled too; off by
+     * @param enabled serve {@code /dashboard}; needs the reports API to be enabled too; on by
      *     default
      */
-    public record Dashboard(@DefaultValue("false") boolean enabled) {
+    public record Dashboard(@DefaultValue("true") boolean enabled) {
     }
 }

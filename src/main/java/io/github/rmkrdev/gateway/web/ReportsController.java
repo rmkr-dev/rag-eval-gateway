@@ -1,5 +1,6 @@
 package io.github.rmkrdev.gateway.web;
 
+import io.github.rmkrdev.gateway.auth.GatewayRoles;
 import io.github.rmkrdev.gateway.report.Bucket;
 import io.github.rmkrdev.gateway.report.GroupBy;
 import io.github.rmkrdev.gateway.report.ReportQuery;
@@ -7,19 +8,21 @@ import io.github.rmkrdev.gateway.report.ReportRequests;
 import io.github.rmkrdev.gateway.report.ReportService;
 import io.github.rmkrdev.gateway.report.Reports;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Cost, token and latency reports over stored calls. Not authenticated until Entra arrives, so
- * keep it off the public internet until then.
+ * Cost, token and latency reports over stored calls, for callers with
+ * {@link GatewayRoles#REPORTS}.
  */
 @RestController
 @RequestMapping("/v1/reports")
 @ConditionalOnBooleanProperty(name = "gateway.tracking.enabled", matchIfMissing = true)
-@ConditionalOnBooleanProperty("gateway.reports.enabled")
+@ConditionalOnBooleanProperty(name = "gateway.reports.enabled", matchIfMissing = true)
+@Secured(GatewayRoles.REPORTS)
 class ReportsController {
 
     private final ReportService reports;

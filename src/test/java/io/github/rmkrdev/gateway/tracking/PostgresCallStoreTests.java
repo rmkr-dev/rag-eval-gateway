@@ -15,7 +15,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Runs the Flyway migrations and the store against a real Postgres. Skipped without Docker. */
-@SpringBootTest(properties = "gateway.tracking.purge-interval=1h")
+@SpringBootTest(properties = {"entra.security.enabled=false", "gateway.tracking.purge-interval=1h"})
 @Testcontainers(disabledWithoutDocker = true)
 class PostgresCallStoreTests {
 

@@ -13,12 +13,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 
+/** Which report endpoints are served. Who may call them is covered in {@code AuthEndpointTests}. */
 class ReportsToggleTests {
 
     @Nested
-    @SpringBootTest
+    @SpringBootTest(properties = "entra.security.enabled=false")
     @AutoConfigureMockMvc
-    class OffByDefault {
+    class OnByDefault {
 
         @Autowired
         MockMvc mvc;
@@ -27,15 +28,15 @@ class ReportsToggleTests {
         ApplicationContext context;
 
         @Test
-        void neitherTheApiNorTheDashboardIsServed() throws Exception {
-            assertThat(context.getBeanNamesForType(ReportService.class)).isEmpty();
-            mvc.perform(get("/v1/reports/summary")).andExpect(status().isNotFound());
-            mvc.perform(get("/dashboard")).andExpect(status().isNotFound());
+        void theApiAndTheDashboardAreServed() throws Exception {
+            assertThat(context.getBeanNamesForType(ReportService.class)).hasSize(1);
+            mvc.perform(get("/v1/reports/summary")).andExpect(status().isOk());
+            mvc.perform(get("/dashboard")).andExpect(status().isOk());
         }
     }
 
     @Nested
-    @SpringBootTest(properties = "gateway.reports.enabled=true")
+    @SpringBootTest(properties = {"entra.security.enabled=false", "gateway.reports.dashboard.enabled=false"})
     @AutoConfigureMockMvc
     class DashboardOff {
 
@@ -50,22 +51,26 @@ class ReportsToggleTests {
     }
 
     @Nested
-    @SpringBootTest(properties = "gateway.reports.dashboard.enabled=true")
+    @SpringBootTest(properties = {"entra.security.enabled=false", "gateway.reports.enabled=false"})
     @AutoConfigureMockMvc
-    class DashboardNeedsReports {
+    class ReportsOff {
 
         @Autowired
         MockMvc mvc;
 
+        @Autowired
+        ApplicationContext context;
+
         @Test
-        void dashboardAloneIsNotServed() throws Exception {
+        void theDashboardNeedsTheApi() throws Exception {
+            assertThat(context.getBeanNamesForType(ReportService.class)).isEmpty();
+            mvc.perform(get("/v1/reports/summary")).andExpect(status().isNotFound());
             mvc.perform(get("/dashboard")).andExpect(status().isNotFound());
         }
     }
 
     @Nested
-    @SpringBootTest(properties = {"gateway.tracking.enabled=false", "gateway.reports.enabled=true",
-            "gateway.reports.dashboard.enabled=true"})
+    @SpringBootTest(properties = {"entra.security.enabled=false", "gateway.tracking.enabled=false"})
     @AutoConfigureMockMvc
     class TrackingOff {
 
