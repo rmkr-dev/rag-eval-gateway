@@ -24,8 +24,8 @@ flowchart LR
 | 4 | Per-call cost (config price table) and latency (time to first token, total) stored in Postgres, H2 for dev, Flyway | Done |
 | 5 | Summary REST endpoints by client, model, provider and time range with p50/p95/p99, Thymeleaf dashboard | Done |
 | 6 | Entra auth via `spring-security-jwt-starter` 1.0.0: `Gateway.Call` and `Gateway.Reports` roles, client from the token, reports and dashboard on by default | Done |
-| 7 | Per-client token budgets and rate limits enforced from stored usage | Next |
-| 8 | PII redaction for prompts and logs | Planned |
+| 7 | Per-client token and cost budgets from stored usage, request and token rate limits, `429` with `Retry-After` | Done |
+| 8 | PII redaction for prompts and logs | Next |
 | 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Planned |
 | 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, probes, preflight script, deploy workflow | Planned |
 | 11 | Diagram-first docs | Planned |
@@ -45,6 +45,7 @@ signs requests itself instead of pulling in the AWS SDK. See
 
 Routing by client and by cost builds on the alias routing from milestone 2, now that callers
 are identified from their tokens (milestone 6) and costs are stored (milestone 4). See
-[auth.md](auth.md).
+[auth.md](auth.md). Budgets and rate limits (milestone 7) use the same client names and stored
+costs; see [budgets.md](budgets.md).
 
 Micrometer metrics stay optional. The built-in store is the main path for cost and latency.
