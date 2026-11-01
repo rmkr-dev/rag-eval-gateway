@@ -57,4 +57,18 @@ class PostgresCallStoreTests {
         assertThat(store.find("gw-pg-new")).isPresent();
         assertThat(store.recent(10)).extracting(CallRecord::id).contains("gw-pg-new");
     }
+
+    @Test
+    void sumsSpendPerClientSinceAStart() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        store.insertAll(List.of(
+                record("gw-pg-spend-1", now, new BigDecimal("0.50")),
+                record("gw-pg-spend-2", now, null),
+                record("gw-pg-spend-old", now.minus(40, ChronoUnit.DAYS), BigDecimal.TEN)));
+
+        ClientSpend spend = store.spendByClientSince(now.minus(1, ChronoUnit.HOURS)).get("billing-api");
+
+        assertThat(spend.tokens()).isGreaterThanOrEqualTo(3_000);
+        assertThat(spend.cost()).isGreaterThanOrEqualTo(new BigDecimal("0.50")).isLessThan(BigDecimal.TEN);
+    }
 }

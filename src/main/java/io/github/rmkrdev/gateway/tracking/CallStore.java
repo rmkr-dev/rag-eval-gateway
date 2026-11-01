@@ -1,11 +1,14 @@
 package io.github.rmkrdev.gateway.tracking;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -70,6 +73,23 @@ public class CallStore {
     /** Deletes calls that started before {@code cutoff} and returns how many went. */
     public int deleteStartedBefore(Instant cutoff) {
         return jdbc.update("DELETE FROM gateway_call WHERE started_at < ?", utc(cutoff));
+    }
+
+    /**
+     * Tokens and cost per client for calls that started at or after {@code since}. Unpriced
+     * calls add tokens but no cost.
+     */
+    public Map<String, ClientSpend> spendByClientSince(Instant since) {
+        Map<String, ClientSpend> spend = new HashMap<>();
+        jdbc.query("""
+                SELECT client, SUM(prompt_tokens + completion_tokens) AS tokens, SUM(cost) AS cost
+                FROM gateway_call WHERE started_at >= ? GROUP BY client
+                """, rs -> {
+            BigDecimal cost = rs.getBigDecimal("cost");
+            spend.put(rs.getString("client"),
+                    new ClientSpend(rs.getLong("tokens"), cost == null ? BigDecimal.ZERO : cost));
+        }, utc(since));
+        return spend;
     }
 
     private static OffsetDateTime utc(Instant instant) {
