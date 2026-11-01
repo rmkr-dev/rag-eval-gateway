@@ -7,6 +7,7 @@ import io.github.rmkrdev.gateway.auth.CallerIdentity;
 import io.github.rmkrdev.gateway.auth.GatewayRoles;
 import io.github.rmkrdev.gateway.call.CallObservers;
 import io.github.rmkrdev.gateway.call.CallOutcome;
+import io.github.rmkrdev.gateway.limits.CallLimits;
 import io.github.rmkrdev.gateway.provider.ProviderReply;
 import io.github.rmkrdev.gateway.routing.AllTargetsFailedException;
 import io.github.rmkrdev.gateway.routing.Attempt;
@@ -48,20 +49,27 @@ class ChatController {
 
     static final String CALLS_HEADER = "X-Gateway-Calls";
     static final String CLIENT_HEADER = "X-Gateway-Client";
+    static final String BUDGET_WARNING_HEADER = "X-Gateway-Budget-Warning";
 
     private final ChatRouter router;
     private final CallObservers observers;
     private final JsonMapper json;
     private final CallerIdentity callers;
+    private final CallLimits limits;
 
-    ChatController(ChatRouter router, CallObservers observers, JsonMapper json, CallerIdentity callers) {
+    ChatController(ChatRouter router, CallObservers observers, JsonMapper json, CallerIdentity callers,
+            CallLimits limits) {
         this.router = router;
         this.observers = observers;
         this.json = json;
         this.callers = callers;
+        this.limits = limits;
     }
 
     /**
+     * Budgets and rate limits are checked first, so a refused call never reaches a provider
+     * and is answered with a plain {@code 429} problem, streaming or not.
+     * <p>
      * Streams are written on the request thread, which is a virtual thread, so a long answer
      * holds no platform thread and needs no async timeout.
      */
@@ -69,7 +77,12 @@ class ChatController {
     ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request,
             @RequestHeader(name = CLIENT_HEADER, required = false) String clientHeader,
             HttpServletResponse response) throws IOException {
-        Call call = new Call("gw-" + UUID.randomUUID(), Instant.now(), callers.client(clientHeader), System.nanoTime());
+        String client = callers.client(clientHeader);
+        String warning = limits.admit(client);
+        if (warning != null) {
+            response.setHeader(BUDGET_WARNING_HEADER, warning);
+        }
+        Call call = new Call("gw-" + UUID.randomUUID(), Instant.now(), client, System.nanoTime());
         try {
             if (request.streaming()) {
                 stream(call, request, response);

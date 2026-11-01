@@ -20,8 +20,8 @@ flowchart LR
 > Status: early development. Chat calls route through any OpenAI-compatible provider and
 > native Anthropic, Gemini and AWS Bedrock adapters, with retries, fallback and streaming.
 > Every call's cost and latency is stored in the gateway's own database, with reports and a
-> dashboard on top, all behind Entra ID authentication. Budgets and rate limits land next. See
-> the [roadmap](docs/roadmap.md).
+> dashboard on top, all behind Entra ID authentication, with per-client budgets and rate
+> limits. PII redaction lands next. See the [roadmap](docs/roadmap.md).
 
 ## Run it
 
@@ -123,6 +123,29 @@ curl -H "Authorization: Bearer $TOKEN" 'localhost:8080/v1/reports/series?bucket=
 Both are on by default and need the `Gateway.Reports` app role. The dashboard shows UTC
 unless `?zone=` says otherwise. Parameters, limits and how percentiles are computed are in
 [docs/reports.md](docs/reports.md).
+
+## Budgets and rate limits
+
+Give each client a token or cost budget per day or month, and a request or token rate per
+minute. Over a limit the call is refused before any provider is asked, with `429` and
+`Retry-After`:
+
+```yaml
+gateway:
+  budgets:
+    default:
+      daily-cost: 5.00
+    clients:
+      billing-api:
+        monthly-cost: 300
+  rate-limits:
+    default:
+      requests-per-minute: 60
+```
+
+Budgets count the gateway's own stored usage, so they hold across restarts and replicas. Nothing
+is limited until a limit is set. Details, the warning header and multi-replica behaviour are in
+[docs/budgets.md](docs/budgets.md).
 
 ## Run with Docker
 

@@ -8,6 +8,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Per-client budgets under `gateway.budgets`: `daily-tokens`, `monthly-tokens`, `daily-cost`
+  and `monthly-cost`, with a `default` and per-client entries (`unlimited: true` to exempt a
+  client). Spend is read from the stored calls every `refresh-interval` (15s) plus the calls
+  the replica finished since, in the configured `zone` (UTC). Over budget, calls are refused
+  before any provider with a `429` problem, `code: budget_exceeded`, `resets_at` and
+  `Retry-After`. From `warn-at` (80%) answers carry `X-Gateway-Budget-Warning`.
+- Per-client rate limits under `gateway.rate-limits`: `requests-per-minute` and
+  `tokens-per-minute` as in-memory token buckets, refused with a `429` problem,
+  `code: rate_limited` and `Retry-After`. Streamed usage counts when the stream ends. A
+  `RateLimitStore` bean can replace the in-memory buckets with a shared store.
+- Nothing is limited until a limit is configured. Budgets need tracking on; startup fails
+  otherwise. See [docs/budgets.md](docs/budgets.md).
+
 - Entra ID authentication through `spring-security-jwt-starter` 1.0.0 (from GitHub Packages):
   every endpoint except health and info needs a valid access token, with `401` and `403`
   problem responses and `Server-Timing: auth;dur=...`. See [docs/auth.md](docs/auth.md).
