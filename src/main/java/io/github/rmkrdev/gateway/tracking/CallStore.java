@@ -18,14 +18,14 @@ public class CallStore {
     private static final String INSERT = """
             INSERT INTO gateway_call (id, started_at, client, model_alias, provider, provider_model, streamed,
                 status, error, finish_reason, prompt_tokens, completion_tokens, cache_read_tokens,
-                cache_write_tokens, cost, currency, price_version, ttft_ms, total_ms, failed_attempts)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                cache_write_tokens, cost, currency, price_version, ttft_ms, total_ms, failed_attempts, pii_redactions)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String SELECT = """
             SELECT id, started_at, client, model_alias, provider, provider_model, streamed, status, error,
                 finish_reason, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, cost,
-                currency, price_version, ttft_ms, total_ms, failed_attempts
+                currency, price_version, ttft_ms, total_ms, failed_attempts, pii_redactions
             FROM gateway_call
             """;
 
@@ -57,6 +57,7 @@ public class CallStore {
             ps.setObject(18, r.timeToFirstTokenMs(), java.sql.Types.BIGINT);
             ps.setLong(19, r.totalMs());
             ps.setInt(20, r.failedAttempts());
+            ps.setInt(21, r.piiRedactions());
         });
     }
 
@@ -117,6 +118,7 @@ public class CallStore {
                 rs.getString("price_version"),
                 rs.getObject("ttft_ms", Long.class),
                 rs.getLong("total_ms"),
-                rs.getInt("failed_attempts"));
+                rs.getInt("failed_attempts"),
+                rs.getInt("pii_redactions"));
     }
 }

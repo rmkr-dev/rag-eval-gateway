@@ -36,7 +36,7 @@ erDiagram
         varchar provider_model
         boolean streamed
         varchar status "ok or error"
-        varchar error "all_targets_failed, request_rejected, stream_interrupted, client_disconnected"
+        varchar error "all_targets_failed, request_rejected, stream_interrupted, client_disconnected, pii_blocked"
         varchar finish_reason
         int prompt_tokens "cache reads and writes included"
         int completion_tokens
@@ -48,6 +48,7 @@ erDiagram
         bigint ttft_ms "time to first token"
         bigint total_ms
         int failed_attempts
+        int pii_redactions "values redacted or masked, never the values"
     }
 ```
 
@@ -147,7 +148,8 @@ curl localhost:8080/v1/calls/gw-6f1c...
   "price_version": "initial",
   "ttft_ms": 412,
   "total_ms": 412,
-  "failed_attempts": 0
+  "failed_attempts": 0,
+  "pii_redactions": 0
 }
 ```
 

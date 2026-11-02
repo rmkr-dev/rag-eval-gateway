@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- PII redaction under `gateway.pii` for every prompt message, plain and streamed, before any
+  provider is asked. Modes `off`, `mask`, `redact` (`[EMAIL_1]`, same value same placeholder)
+  and `block` (`422` problem, `code: pii_detected`, counts by detector), set by default, per
+  model alias and per client; the stricter entry wins. Off until configured.
+- Built-in detectors for email, phone, credit card (Luhn), IBAN (mod 97), US SSN, IPv4 and
+  IPv6, Indian PAN and Aadhaar (Verhoeff), plus `custom` regex detectors from config and a
+  `PiiDetector` SPI for beans. Patterns are compiled once; bad config fails startup.
+- Optional `restore` puts this call's originals back into answers, streamed ones included.
+- Redaction counts per call in the new `pii_redactions` column and `X-Gateway-Pii` header.
+  Provider error details are scrubbed before logging (`scrub-logs`, on by default). See
+  [docs/pii-redaction.md](docs/pii-redaction.md).
+
 - Per-client budgets under `gateway.budgets`: `daily-tokens`, `monthly-tokens`, `daily-cost`
   and `monthly-cost`, with a `default` and per-client entries (`unlimited: true` to exempt a
   client). Spend is read from the stored calls every `refresh-interval` (15s) plus the calls

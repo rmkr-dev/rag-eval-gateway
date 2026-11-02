@@ -1,6 +1,7 @@
 package io.github.rmkrdev.gateway.web;
 
 import io.github.rmkrdev.gateway.limits.LimitExceededException;
+import io.github.rmkrdev.gateway.pii.PiiBlockedException;
 import io.github.rmkrdev.gateway.report.InvalidReportException;
 import io.github.rmkrdev.gateway.routing.AllTargetsFailedException;
 import io.github.rmkrdev.gateway.routing.RequestRejectedException;
@@ -62,6 +63,19 @@ class GatewayExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.retryAfterSeconds()))
                 .body(problem);
+    }
+
+    /**
+     * A prompt with personal data under the {@code block} mode: {@code 422} with
+     * {@code code: pii_detected} and counts by detector, never the values.
+     */
+    @ExceptionHandler
+    ProblemDetail piiBlocked(PiiBlockedException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
+        problem.setTitle("Personal data not allowed");
+        problem.setProperty("code", PiiBlockedException.CODE);
+        problem.setProperty("detected", e.counts());
+        return problem;
     }
 
     @ExceptionHandler

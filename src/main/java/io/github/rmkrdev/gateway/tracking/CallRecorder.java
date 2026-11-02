@@ -82,7 +82,8 @@ public class CallRecorder implements CallObserver, SmartLifecycle {
                 price.map(Price::version).orElse(null),
                 millis(outcome.timeToFirstToken()),
                 outcome.total() == null ? 0 : outcome.total().toMillis(),
-                outcome.failedAttempts() == null ? 0 : outcome.failedAttempts().size());
+                outcome.failedAttempts() == null ? 0 : outcome.failedAttempts().size(),
+                outcome.piiRedactions());
     }
 
     /** Writes everything queued so far on the calling thread. */

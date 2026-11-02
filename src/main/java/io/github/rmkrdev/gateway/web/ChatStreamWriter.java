@@ -6,6 +6,7 @@ import io.github.rmkrdev.gateway.api.ChatCompletionChunk.Delta;
 import io.github.rmkrdev.gateway.api.Usage;
 import io.github.rmkrdev.gateway.call.CallObservers;
 import io.github.rmkrdev.gateway.call.CallOutcome;
+import io.github.rmkrdev.gateway.pii.PlaceholderRestorer;
 import io.github.rmkrdev.gateway.provider.ChatChunk;
 import io.github.rmkrdev.gateway.provider.ProviderException;
 import io.github.rmkrdev.gateway.routing.RoutedStream;
@@ -15,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.json.JsonMapper;
@@ -24,6 +26,9 @@ import tools.jackson.databind.json.JsonMapper;
  * usage chunk, then {@code data: [DONE]}. If the provider fails after the first chunk the
  * stream ends with a single {@code {"error": ...}} event and no {@code [DONE]}, so clients can
  * tell a cut-off answer from a complete one.
+ * <p>
+ * With a {@link PlaceholderRestorer}, redaction placeholders in the answer are replaced by the
+ * original values; a placeholder split across chunks is held back until it is whole.
  */
 final class ChatStreamWriter {
 
@@ -37,9 +42,13 @@ final class ChatStreamWriter {
     private final RoutedStream routed;
     private final JsonMapper json;
     private final CallObservers observers;
+    private final PlaceholderRestorer restorer;
+    private final int piiRedactions;
+    private final UnaryOperator<String> logScrubber;
 
     ChatStreamWriter(ChatController.Call call, long created, String model, RoutedStream routed, JsonMapper json,
-            CallObservers observers) {
+            CallObservers observers, PlaceholderRestorer restorer, int piiRedactions,
+            UnaryOperator<String> logScrubber) {
         this.call = call;
         this.id = call.id();
         this.created = created;
@@ -47,6 +56,9 @@ final class ChatStreamWriter {
         this.routed = routed;
         this.json = json;
         this.observers = observers;
+        this.restorer = restorer;
+        this.piiRedactions = piiRedactions;
+        this.logScrubber = logScrubber;
     }
 
     /** Drains the stream into {@code out}, always closing the upstream and reporting the outcome. */
@@ -60,15 +72,26 @@ final class ChatStreamWriter {
                 if (chunk.usage() != null) {
                     usage = chunk.usage();
                 }
-                boolean hasText = chunk.content() != null && !chunk.content().isEmpty();
+                String text = chunk.content();
+                if (restorer != null) {
+                    text = restorer.next(text);
+                    if (chunk.finishReason() != null) {
+                        text += restorer.finish();
+                    }
+                }
+                boolean hasText = text != null && !text.isEmpty();
                 if (hasText || chunk.finishReason() != null) {
                     if (chunk.finishReason() != null) {
                         finishReason = chunk.finishReason();
                     }
-                    Delta delta = new Delta(first ? "assistant" : null, hasText ? chunk.content() : null);
+                    Delta delta = new Delta(first ? "assistant" : null, hasText ? text : null);
                     send(out, chunk(List.of(new Choice(0, delta, chunk.finishReason())), null));
                     first = false;
                 }
+            }
+            String rest = restorer == null ? "" : restorer.finish();
+            if (!rest.isEmpty()) {
+                send(out, chunk(List.of(new Choice(0, new Delta(first ? "assistant" : null, rest), null)), null));
             }
             if (usage != null) {
                 send(out, chunk(List.of(), usage));
@@ -79,7 +102,9 @@ final class ChatStreamWriter {
             error = "stream_interrupted";
             log.warn("model={} provider={} target={} stream failed mid-answer: failure={} status={}",
                     model, routed.target().provider(), routed.target().model(), e.failure(), e.status());
-            log.debug("provider error detail: {}", e.getMessage());
+            if (log.isDebugEnabled()) {
+                log.debug("provider error detail: {}", logScrubber.apply(e.getMessage()));
+            }
             sendQuietly(out, Map.of("error", Map.of(
                     "message", "provider stream failed after the answer started",
                     "type", "upstream_error",
@@ -92,7 +117,7 @@ final class ChatStreamWriter {
             observers.completed(new CallOutcome(id, call.startedAt(), call.client(), model,
                     routed.target().provider(), routed.target().model(), true,
                     routed.failedAttempts(), usage == null ? Usage.NONE : usage, finishReason,
-                    routed.timeToFirstToken(), routed.elapsed(), error));
+                    routed.timeToFirstToken(), routed.elapsed(), error, piiRedactions));
         }
     }
 
