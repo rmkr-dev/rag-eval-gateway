@@ -20,8 +20,8 @@ flowchart LR
 > Status: early development. Chat calls route through any OpenAI-compatible provider and
 > native Anthropic, Gemini and AWS Bedrock adapters, with retries, fallback and streaming.
 > Every call's cost and latency is stored in the gateway's own database, with reports and a
-> dashboard on top, all behind Entra ID authentication, with per-client budgets and rate
-> limits. PII redaction lands next. See the [roadmap](docs/roadmap.md).
+> dashboard on top, all behind Entra ID authentication, with per-client budgets, rate limits
+> and PII redaction. Eval hooks land next. See the [roadmap](docs/roadmap.md).
 
 ## Run it
 
@@ -146,6 +146,24 @@ gateway:
 Budgets count the gateway's own stored usage, so they hold across restarts and replicas. Nothing
 is limited until a limit is set. Details, the warning header and multi-replica behaviour are in
 [docs/budgets.md](docs/budgets.md).
+
+## PII redaction
+
+Find emails, phone numbers, cards, IBANs, SSNs, IP addresses, PAN and Aadhaar numbers, or your
+own patterns, in prompts before any provider sees them. Per client or model alias, choose
+`mask`, `redact` (`[EMAIL_1]`) or `block` (`422`):
+
+```yaml
+gateway:
+  pii:
+    mode: redact
+    clients:
+      billing-api: block
+```
+
+Plain and streamed calls are covered, only counts are stored, and provider error details are
+scrubbed before logging. Off until a mode is set. Details, custom detectors and placeholder
+restore are in [docs/pii-redaction.md](docs/pii-redaction.md).
 
 ## Run with Docker
 
