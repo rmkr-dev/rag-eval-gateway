@@ -2,6 +2,7 @@ package io.github.rmkrdev.gateway.routing;
 
 import io.github.rmkrdev.gateway.api.ChatRequest;
 import io.github.rmkrdev.gateway.config.GatewayProperties;
+import io.github.rmkrdev.gateway.pii.PiiRedactor;
 import io.github.rmkrdev.gateway.provider.ChatChunk;
 import io.github.rmkrdev.gateway.provider.ChatProvider;
 import io.github.rmkrdev.gateway.provider.ChatStream;
@@ -13,8 +14,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -48,17 +51,33 @@ public class ChatRouter {
     private final ProviderRegistry registry;
     private final Backoff backoff;
     private final Sleeper sleeper;
+    private final UnaryOperator<String> logScrubber;
 
+    /**
+     * @param pii scrubs provider error details before they are logged, since a provider may
+     *     echo the prompt back in an error
+     */
     @Autowired
-    public ChatRouter(GatewayProperties properties, ProviderRegistry registry) {
-        this(properties, registry, new Backoff(properties.retry()), duration -> Thread.sleep(duration));
+    public ChatRouter(GatewayProperties properties, ProviderRegistry registry, ObjectProvider<PiiRedactor> pii) {
+        this(properties, registry, new Backoff(properties.retry()), duration -> Thread.sleep(duration),
+                scrubber(pii.getIfAvailable()));
     }
 
     ChatRouter(GatewayProperties properties, ProviderRegistry registry, Backoff backoff, Sleeper sleeper) {
+        this(properties, registry, backoff, sleeper, UnaryOperator.identity());
+    }
+
+    ChatRouter(GatewayProperties properties, ProviderRegistry registry, Backoff backoff, Sleeper sleeper,
+            UnaryOperator<String> logScrubber) {
         this.properties = properties;
         this.registry = registry;
         this.backoff = backoff;
         this.sleeper = sleeper;
+        this.logScrubber = logScrubber;
+    }
+
+    private static UnaryOperator<String> scrubber(PiiRedactor pii) {
+        return pii == null ? UnaryOperator.identity() : pii::forLog;
     }
 
     public RoutedReply route(ChatRequest request) {
@@ -115,7 +134,9 @@ public class ChatRouter {
                     failures.add(new Attempt(target.provider(), target.model(), attempt, e.failure(), e.status()));
                     log.warn("model={} provider={} target={} attempt={} failure={} status={}",
                             alias, target.provider(), target.model(), attempt, e.failure(), e.status());
-                    log.debug("provider error detail: {}", e.getMessage());
+                    if (log.isDebugEnabled()) {
+                        log.debug("provider error detail: {}", logScrubber.apply(e.getMessage()));
+                    }
                     if (e.failure() == Failure.REQUEST) {
                         if (hasNext && fallsBackOn(model, e)) {
                             break;

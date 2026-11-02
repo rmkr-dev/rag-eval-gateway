@@ -72,6 +72,17 @@ gateway:
     enabled: true
     default: {}
     clients: {}
+  # Personal data in prompts: off, mask, redact ([EMAIL_1]) or block (422). Off until mode, a
+  # model alias or a client asks for it; the stricter of a model and a client entry wins.
+  # Provider error details are scrubbed before logging whatever the mode. See docs/pii-redaction.md.
+  pii:
+    mode: "off"
+    models: {}
+    clients: {}
+    detectors: []
+    custom: {}
+    restore: false
+    scrub-logs: true
   # Caller identity for tracking comes from the validated token: the calling application id
   # (azp or appid) unless client-claim names another claim. client-names gives ids readable
   # names in reports, for example "11111111-...": billing-api.

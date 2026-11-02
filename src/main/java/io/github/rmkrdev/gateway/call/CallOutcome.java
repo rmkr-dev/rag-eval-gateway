@@ -23,7 +23,10 @@ import java.util.List;
  *     {@code total}; {@code null} when nothing arrived
  * @param total time from the start of routing to the end of the answer
  * @param error {@code null} on success, otherwise a short failure label such as
- *     {@code all_targets_failed}, {@code request_rejected} or {@code stream_interrupted}
+ *     {@code all_targets_failed}, {@code request_rejected}, {@code stream_interrupted} or
+ *     {@code pii_blocked}
+ * @param piiRedactions personal data values found in the prompt (redacted, masked or blocked);
+ *     never the values themselves
  */
 public record CallOutcome(
         String id,
@@ -38,7 +41,16 @@ public record CallOutcome(
         String finishReason,
         Duration timeToFirstToken,
         Duration total,
-        String error) {
+        String error,
+        int piiRedactions) {
+
+    /** An outcome without personal data found in the prompt. */
+    public CallOutcome(String id, Instant startedAt, String client, String model, String provider,
+            String providerModel, boolean streamed, List<Attempt> failedAttempts, Usage usage, String finishReason,
+            Duration timeToFirstToken, Duration total, String error) {
+        this(id, startedAt, client, model, provider, providerModel, streamed, failedAttempts, usage, finishReason,
+                timeToFirstToken, total, error, 0);
+    }
 
     public boolean succeeded() {
         return error == null;

@@ -1,5 +1,6 @@
 package io.github.rmkrdev.gateway.web;
 
+import io.github.rmkrdev.gateway.api.ChatMessage;
 import io.github.rmkrdev.gateway.api.ChatRequest;
 import io.github.rmkrdev.gateway.api.ChatResponse;
 import io.github.rmkrdev.gateway.api.Usage;
@@ -8,6 +9,9 @@ import io.github.rmkrdev.gateway.auth.GatewayRoles;
 import io.github.rmkrdev.gateway.call.CallObservers;
 import io.github.rmkrdev.gateway.call.CallOutcome;
 import io.github.rmkrdev.gateway.limits.CallLimits;
+import io.github.rmkrdev.gateway.pii.PiiBlockedException;
+import io.github.rmkrdev.gateway.pii.PiiRedactor;
+import io.github.rmkrdev.gateway.pii.Redaction;
 import io.github.rmkrdev.gateway.provider.ProviderReply;
 import io.github.rmkrdev.gateway.routing.AllTargetsFailedException;
 import io.github.rmkrdev.gateway.routing.Attempt;
@@ -41,6 +45,9 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>
  * Needs {@link GatewayRoles#CALLER}. The client recorded for the call comes from the token;
  * {@code X-Gateway-Client} counts only while auth is off.
+ * <p>
+ * Personal data in the prompt is handled after the limits and before routing, so a provider
+ * only ever sees the redacted or masked request, and a blocked prompt reaches no provider.
  */
 @RestController
 @RequestMapping("/v1/chat/completions")
@@ -50,20 +57,23 @@ class ChatController {
     static final String CALLS_HEADER = "X-Gateway-Calls";
     static final String CLIENT_HEADER = "X-Gateway-Client";
     static final String BUDGET_WARNING_HEADER = "X-Gateway-Budget-Warning";
+    static final String PII_HEADER = "X-Gateway-Pii";
 
     private final ChatRouter router;
     private final CallObservers observers;
     private final JsonMapper json;
     private final CallerIdentity callers;
     private final CallLimits limits;
+    private final PiiRedactor pii;
 
     ChatController(ChatRouter router, CallObservers observers, JsonMapper json, CallerIdentity callers,
-            CallLimits limits) {
+            CallLimits limits, PiiRedactor pii) {
         this.router = router;
         this.observers = observers;
         this.json = json;
         this.callers = callers;
         this.limits = limits;
+        this.pii = pii;
     }
 
     /**
@@ -83,17 +93,27 @@ class ChatController {
             response.setHeader(BUDGET_WARNING_HEADER, warning);
         }
         Call call = new Call("gw-" + UUID.randomUUID(), Instant.now(), client, System.nanoTime());
+        Redaction redaction;
+        try {
+            redaction = pii.redact(request, client);
+        } catch (PiiBlockedException e) {
+            failed(call, request, List.of(), "pii_blocked", e.total());
+            throw e;
+        }
+        if (redaction.total() > 0) {
+            response.setHeader(PII_HEADER, redaction.summary());
+        }
         try {
             if (request.streaming()) {
-                stream(call, request, response);
+                stream(call, redaction, response);
                 return null;
             }
-            return complete(call, request);
+            return complete(call, redaction);
         } catch (AllTargetsFailedException e) {
-            failed(call, request, e.attempts(), "all_targets_failed");
+            failed(call, request, e.attempts(), "all_targets_failed", redaction.total());
             throw e;
         } catch (RequestRejectedException e) {
-            failed(call, request, e.attempts(), "request_rejected");
+            failed(call, request, e.attempts(), "request_rejected", redaction.total());
             throw e;
         }
     }
@@ -102,25 +122,31 @@ class ChatController {
     record Call(String id, Instant startedAt, String client, long startedNanos) {
     }
 
-    private ResponseEntity<ChatResponse> complete(Call call, ChatRequest request) {
+    private ResponseEntity<ChatResponse> complete(Call call, Redaction redaction) {
         String id = call.id();
+        ChatRequest request = redaction.request();
         RoutedReply routed = router.route(request);
         ProviderReply reply = routed.reply();
+        ChatMessage message = reply.message();
+        if (redaction.restorer() != null && message != null) {
+            message = new ChatMessage(message.role(), redaction.restore(message.content()));
+        }
         ChatResponse body = new ChatResponse(
                 id,
                 request.model(),
                 routed.target().provider(),
                 routed.target().model(),
-                reply.message(),
+                message,
                 reply.finishReason(),
                 reply.usage());
         observers.completed(new CallOutcome(id, call.startedAt(), call.client(), request.model(),
                 routed.target().provider(), routed.target().model(), false, routed.failedAttempts(), reply.usage(), reply.finishReason(), routed.elapsed(),
-                routed.elapsed(), null));
+                routed.elapsed(), null, redaction.total()));
         return ResponseEntity.ok().header(CALLS_HEADER, String.valueOf(routed.calls())).body(body);
     }
 
-    private void stream(Call call, ChatRequest request, HttpServletResponse response) throws IOException {
+    private void stream(Call call, Redaction redaction, HttpServletResponse response) throws IOException {
+        ChatRequest request = redaction.request();
         long created = Instant.now().getEpochSecond();
         RoutedStream routed = router.routeStream(request);
         response.setStatus(HttpServletResponse.SC_OK);
@@ -129,12 +155,13 @@ class ChatController {
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
         response.setHeader(CALLS_HEADER, String.valueOf(routed.calls()));
-        new ChatStreamWriter(call, created, request.model(), routed, json, observers).writeTo(response.getOutputStream());
+        new ChatStreamWriter(call, created, request.model(), routed, json, observers, redaction.restorer(),
+                redaction.total(), pii::forLog).writeTo(response.getOutputStream());
     }
 
-    private void failed(Call call, ChatRequest request, List<Attempt> attempts, String error) {
+    private void failed(Call call, ChatRequest request, List<Attempt> attempts, String error, int piiRedactions) {
         observers.completed(new CallOutcome(call.id(), call.startedAt(), call.client(), request.model(), null, null,
                 request.streaming(), attempts, Usage.NONE, null, null,
-                Duration.ofNanos(System.nanoTime() - call.startedNanos()), error));
+                Duration.ofNanos(System.nanoTime() - call.startedNanos()), error, piiRedactions));
     }
 }

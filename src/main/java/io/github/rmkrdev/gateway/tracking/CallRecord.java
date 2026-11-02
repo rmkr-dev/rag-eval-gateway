@@ -28,6 +28,7 @@ import java.time.Instant;
  * @param timeToFirstTokenMs milliseconds to the first token, or {@code null}
  * @param totalMs milliseconds from arrival to the end of the answer
  * @param failedAttempts provider calls that failed before the answer
+ * @param piiRedactions personal data values found in the prompt; never the values themselves
  */
 public record CallRecord(
         String id,
@@ -49,7 +50,19 @@ public record CallRecord(
         @JsonProperty("price_version") String priceVersion,
         @JsonProperty("ttft_ms") Long timeToFirstTokenMs,
         @JsonProperty("total_ms") long totalMs,
-        @JsonProperty("failed_attempts") int failedAttempts) {
+        @JsonProperty("failed_attempts") int failedAttempts,
+        @JsonProperty("pii_redactions") int piiRedactions) {
+
+    /** A record without personal data found in the prompt. */
+    public CallRecord(String id, Instant startedAt, String client, String model, String provider,
+            String providerModel, boolean streamed, String status, String error, String finishReason,
+            int promptTokens, int completionTokens, Integer cacheReadTokens, Integer cacheWriteTokens,
+            BigDecimal cost, String currency, String priceVersion, Long timeToFirstTokenMs, long totalMs,
+            int failedAttempts) {
+        this(id, startedAt, client, model, provider, providerModel, streamed, status, error, finishReason,
+                promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens, cost, currency, priceVersion,
+                timeToFirstTokenMs, totalMs, failedAttempts, 0);
+    }
 
     public static final String OK = "ok";
     public static final String ERROR = "error";
