@@ -83,6 +83,22 @@ gateway:
     custom: {}
     restore: false
     scrub-logs: true
+  # Eval sampling: a share of successful calls is kept as the provider saw it (after PII
+  # redaction) with the answer and any eval_context, for scoring with llm-eval-harness. Off until
+  # enabled; a client rate wins over a model rate, both over sample-rate. See docs/eval-hooks.md.
+  eval:
+    enabled: false
+    sample-rate: 0.01
+    models: {}
+    clients: {}
+    tags: []
+    sinks: [database]
+    file:
+      path: eval-samples
+      format: jsonl
+    queue-capacity: 1000
+    max-text-length: 32000
+    retention: 30d
   # Caller identity for tracking comes from the validated token: the calling application id
   # (azp or appid) unless client-claim names another claim. client-names gives ids readable
   # names in reports, for example "11111111-...": billing-api.

@@ -8,6 +8,7 @@ import io.github.rmkrdev.gateway.auth.CallerIdentity;
 import io.github.rmkrdev.gateway.auth.GatewayRoles;
 import io.github.rmkrdev.gateway.call.CallObservers;
 import io.github.rmkrdev.gateway.call.CallOutcome;
+import io.github.rmkrdev.gateway.eval.EvalSampler;
 import io.github.rmkrdev.gateway.limits.CallLimits;
 import io.github.rmkrdev.gateway.pii.PiiBlockedException;
 import io.github.rmkrdev.gateway.pii.PiiRedactor;
@@ -48,6 +49,10 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>
  * Personal data in the prompt is handled after the limits and before routing, so a provider
  * only ever sees the redacted or masked request, and a blocked prompt reaches no provider.
+ * <p>
+ * Whether a call is sampled for evaluation is decided when it arrives. A sampled call that
+ * succeeds is handed to the {@link EvalSampler} as the provider saw it, after the answer is
+ * complete; {@code eval_context} of calls that are not sampled is dropped unread.
  */
 @RestController
 @RequestMapping("/v1/chat/completions")
@@ -65,15 +70,17 @@ class ChatController {
     private final CallerIdentity callers;
     private final CallLimits limits;
     private final PiiRedactor pii;
+    private final EvalSampler eval;
 
     ChatController(ChatRouter router, CallObservers observers, JsonMapper json, CallerIdentity callers,
-            CallLimits limits, PiiRedactor pii) {
+            CallLimits limits, PiiRedactor pii, EvalSampler eval) {
         this.router = router;
         this.observers = observers;
         this.json = json;
         this.callers = callers;
         this.limits = limits;
         this.pii = pii;
+        this.eval = eval;
     }
 
     /**
@@ -92,7 +99,11 @@ class ChatController {
         if (warning != null) {
             response.setHeader(BUDGET_WARNING_HEADER, warning);
         }
-        Call call = new Call("gw-" + UUID.randomUUID(), Instant.now(), client, System.nanoTime());
+        boolean sampled = eval.shouldSample(client, request.model());
+        Call call = new Call("gw-" + UUID.randomUUID(), Instant.now(), client, System.nanoTime(), sampled);
+        if (!sampled && request.evalContext() != null) {
+            request = request.with(request.messages(), null);
+        }
         Redaction redaction;
         try {
             redaction = pii.redact(request, client);
@@ -119,7 +130,7 @@ class ChatController {
     }
 
     /** Identity of one call, fixed when it arrives. */
-    record Call(String id, Instant startedAt, String client, long startedNanos) {
+    record Call(String id, Instant startedAt, String client, long startedNanos, boolean sampled) {
     }
 
     private ResponseEntity<ChatResponse> complete(Call call, Redaction redaction) {
@@ -142,6 +153,10 @@ class ChatController {
         observers.completed(new CallOutcome(id, call.startedAt(), call.client(), request.model(),
                 routed.target().provider(), routed.target().model(), false, routed.failedAttempts(), reply.usage(), reply.finishReason(), routed.elapsed(),
                 routed.elapsed(), null, redaction.total()));
+        if (call.sampled()) {
+            eval.capture(id, call.startedAt(), call.client(), routed.target().provider(), routed.target().model(),
+                    request, reply.message() == null ? null : reply.message().content(), redaction.total());
+        }
         return ResponseEntity.ok().header(CALLS_HEADER, String.valueOf(routed.calls())).body(body);
     }
 
@@ -156,7 +171,9 @@ class ChatController {
         response.setHeader("X-Accel-Buffering", "no");
         response.setHeader(CALLS_HEADER, String.valueOf(routed.calls()));
         new ChatStreamWriter(call, created, request.model(), routed, json, observers, redaction.restorer(),
-                redaction.total(), pii::forLog).writeTo(response.getOutputStream());
+                redaction.total(), pii::forLog, call.sampled() ? answer -> eval.capture(call.id(), call.startedAt(),
+                        call.client(), routed.target().provider(), routed.target().model(), request, answer,
+                        redaction.total()) : null, eval.maxTextLength()).writeTo(response.getOutputStream());
     }
 
     private void failed(Call call, ChatRequest request, List<Attempt> attempts, String error, int piiRedactions) {

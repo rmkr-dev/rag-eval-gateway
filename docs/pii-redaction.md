@@ -114,7 +114,8 @@ somewhere the original values should not.
 
 ## Logs and storage
 
-Prompts and answers are never stored or logged by the gateway. What is stored per call is the
+Prompts and answers are never logged, and stored only for calls that [eval hooks](eval-hooks.md)
+sample, as the provider saw them. What is stored per call is the
 number of redactions, in the `pii_redactions` column, shown by `GET /v1/calls/{id}`. Blocked
 calls are stored with error `pii_blocked`. Provider error details, which can echo the prompt,
 are scrubbed (`[EMAIL]`) before they reach the debug log whatever the mode, unless

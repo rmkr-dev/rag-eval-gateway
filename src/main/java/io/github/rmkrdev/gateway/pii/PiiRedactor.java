@@ -45,7 +45,9 @@ public class PiiRedactor {
     }
 
     /**
-     * Applies the caller's mode to every message.
+     * Applies the caller's mode to every message, and to any eval context with the same
+     * placeholders. Personal data in eval context is never sent anywhere, so it neither counts
+     * nor blocks the call: under {@code block} it is redacted instead.
      *
      * @throws PiiBlockedException when the mode is {@code block} and anything was found
      */
@@ -67,11 +69,20 @@ public class PiiRedactor {
         if (mode == PiiMode.BLOCK && !counts.isEmpty()) {
             throw new PiiBlockedException(counts);
         }
+        List<String> context = request.evalContext();
+        if (context != null && !context.isEmpty()) {
+            List<String> replaced = new ArrayList<>(context.size());
+            for (String passage : context) {
+                String out = passage == null ? null : session.applyUncounted(passage);
+                changed |= out != passage;
+                replaced.add(out);
+            }
+            context = replaced;
+        }
         if (!changed) {
             return Redaction.unchanged(request, mode);
         }
-        ChatRequest redacted = new ChatRequest(request.model(), messages, request.temperature(),
-                request.maxTokens(), request.stream(), request.metadata());
+        ChatRequest redacted = request.with(messages, context);
         PlaceholderRestorer restorer = mode == PiiMode.REDACT && properties.restore()
                 ? new PlaceholderRestorer(session.originals) : null;
         return new Redaction(redacted, mode, counts, restorer);
@@ -143,6 +154,15 @@ public class PiiRedactor {
 
         /** Returns {@code text} itself when nothing was found. */
         String apply(String text) {
+            return apply(text, mode, true);
+        }
+
+        /** Replaces without counting; {@code block} redacts, as nothing is refused for this text. */
+        String applyUncounted(String text) {
+            return apply(text, mode == PiiMode.BLOCK ? PiiMode.REDACT : mode, false);
+        }
+
+        private String apply(String text, PiiMode how, boolean count) {
             List<Span> spans = find(text);
             if (spans.isEmpty()) {
                 return text;
@@ -152,8 +172,10 @@ public class PiiRedactor {
             for (Span span : spans) {
                 PiiDetector detector = span.detector();
                 String value = text.substring(span.start(), span.end());
-                counts.merge(detector.id(), 1, Integer::sum);
-                out.append(text, last, span.start()).append(switch (mode) {
+                if (count) {
+                    counts.merge(detector.id(), 1, Integer::sum);
+                }
+                out.append(text, last, span.start()).append(switch (how) {
                     case MASK -> detector.mask(value);
                     case REDACT -> placeholder(detector, value);
                     default -> "";

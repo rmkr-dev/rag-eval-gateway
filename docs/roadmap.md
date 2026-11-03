@@ -26,8 +26,8 @@ flowchart LR
 | 6 | Entra auth via `spring-security-jwt-starter` 1.0.0: `Gateway.Call` and `Gateway.Reports` roles, client from the token, reports and dashboard on by default | Done |
 | 7 | Per-client token and cost budgets from stored usage, request and token rate limits, `429` with `Retry-After` | Done |
 | 8 | PII redaction for prompts, streams and logs: mask, redact, block, per client and model, custom detectors | Done |
-| 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Next |
-| 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, probes, preflight script, deploy workflow | Planned |
+| 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Done |
+| 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, probes, preflight script, deploy workflow | Next |
 | 11 | Diagram-first docs | Planned |
 | 12 | Release v1.0.0 | Planned |
 
@@ -47,6 +47,8 @@ Routing by client and by cost builds on the alias routing from milestone 2, now 
 are identified from their tokens (milestone 6) and costs are stored (milestone 4). See
 [auth.md](auth.md). Budgets and rate limits (milestone 7) use the same client names and stored
 costs; see [budgets.md](budgets.md). PII redaction (milestone 8) uses the same client names
-and model aliases to pick a mode; see [pii-redaction.md](pii-redaction.md).
+and model aliases to pick a mode; see [pii-redaction.md](pii-redaction.md). Eval hooks
+(milestone 9) sample calls by the same names, keep prompts only after redaction and export
+fixtures that `llm-eval-harness` runs as is; see [eval-hooks.md](eval-hooks.md).
 
 Micrometer metrics stay optional. The built-in store is the main path for cost and latency.

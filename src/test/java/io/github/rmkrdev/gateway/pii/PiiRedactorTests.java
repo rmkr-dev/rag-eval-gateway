@@ -101,6 +101,28 @@ class PiiRedactorTests {
     }
 
     @Test
+    void evalContextSharesPlaceholdersButNeitherCountsNorBlocks() {
+        ChatRequest request = new ChatRequest("chat", List.of(new ChatMessage("user", "Status for priya@example.com?")),
+                null, null, null, null, List.of("Ticket from priya@example.com, card 4111 1111 1111 1111", "no data"));
+
+        Redaction redacted = redactor(properties(PiiMode.REDACT)).redact(request, null);
+
+        assertThat(redacted.request().messages().get(0).content()).isEqualTo("Status for [EMAIL_1]?");
+        assertThat(redacted.request().evalContext()).containsExactly("Ticket from [EMAIL_1], card [CARD_1]", "no data");
+        assertThat(redacted.counts()).containsExactly(Map.entry("email", 1));
+
+        ChatRequest clean = new ChatRequest("chat", List.of(new ChatMessage("user", "Status?")), null, null, null,
+                null, List.of("Ticket from priya@example.com"));
+        Redaction blocked = redactor(properties(PiiMode.BLOCK)).redact(clean, null);
+        assertThat(blocked.total()).isZero();
+        assertThat(blocked.request().evalContext()).containsExactly("Ticket from [EMAIL_1]");
+
+        Redaction masked = redactor(properties(PiiMode.MASK)).redact(clean, null);
+        assertThat(masked.request().evalContext()).containsExactly("Ticket from p***@example.com");
+        assertThat(masked.request().messages()).isEqualTo(clean.messages());
+    }
+
+    @Test
     void stricterOfModelAndClientWinsAndClientsIgnoreCase() {
         PiiRedactor redactor = redactor(properties(PiiMode.REDACT,
                 Map.of("internal", PiiMode.OFF, "public", PiiMode.BLOCK),
