@@ -1,5 +1,6 @@
 package io.github.rmkrdev.gateway.web;
 
+import io.github.rmkrdev.gateway.eval.InvalidEvalRequestException;
 import io.github.rmkrdev.gateway.limits.LimitExceededException;
 import io.github.rmkrdev.gateway.pii.PiiBlockedException;
 import io.github.rmkrdev.gateway.report.InvalidReportException;
@@ -82,6 +83,13 @@ class GatewayExceptionHandler {
     ProblemDetail invalidReport(InvalidReportException e) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
         problem.setTitle("Invalid report request");
+        return problem;
+    }
+
+    @ExceptionHandler
+    ProblemDetail invalidEvalRequest(InvalidEvalRequestException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+        problem.setTitle("Invalid eval request");
         return problem;
     }
 }

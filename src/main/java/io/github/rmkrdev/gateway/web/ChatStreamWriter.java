@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,9 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>
  * With a {@link PlaceholderRestorer}, redaction placeholders in the answer are replaced by the
  * original values; a placeholder split across chunks is held back until it is whole.
+ * <p>
+ * For a call sampled for evaluation, the answer as the provider streamed it, before any
+ * restoring, is collected up to a length cap and handed over once the stream completed.
  */
 final class ChatStreamWriter {
 
@@ -45,10 +49,12 @@ final class ChatStreamWriter {
     private final PlaceholderRestorer restorer;
     private final int piiRedactions;
     private final UnaryOperator<String> logScrubber;
+    private final Consumer<String> sample;
+    private final int sampleLimit;
 
     ChatStreamWriter(ChatController.Call call, long created, String model, RoutedStream routed, JsonMapper json,
             CallObservers observers, PlaceholderRestorer restorer, int piiRedactions,
-            UnaryOperator<String> logScrubber) {
+            UnaryOperator<String> logScrubber, Consumer<String> sample, int sampleLimit) {
         this.call = call;
         this.id = call.id();
         this.created = created;
@@ -59,6 +65,8 @@ final class ChatStreamWriter {
         this.restorer = restorer;
         this.piiRedactions = piiRedactions;
         this.logScrubber = logScrubber;
+        this.sample = sample;
+        this.sampleLimit = sampleLimit;
     }
 
     /** Drains the stream into {@code out}, always closing the upstream and reporting the outcome. */
@@ -67,12 +75,16 @@ final class ChatStreamWriter {
         String finishReason = null;
         String error = null;
         boolean first = true;
+        StringBuilder answer = sample == null ? null : new StringBuilder();
         try (routed) {
             for (ChatChunk chunk = routed.next(); chunk != null; chunk = routed.next()) {
                 if (chunk.usage() != null) {
                     usage = chunk.usage();
                 }
                 String text = chunk.content();
+                if (answer != null && text != null && answer.length() < sampleLimit) {
+                    answer.append(text, 0, Math.min(text.length(), sampleLimit - answer.length()));
+                }
                 if (restorer != null) {
                     text = restorer.next(text);
                     if (chunk.finishReason() != null) {
@@ -118,6 +130,9 @@ final class ChatStreamWriter {
                     routed.target().provider(), routed.target().model(), true,
                     routed.failedAttempts(), usage == null ? Usage.NONE : usage, finishReason,
                     routed.timeToFirstToken(), routed.elapsed(), error, piiRedactions));
+            if (answer != null && error == null) {
+                sample.accept(answer.toString());
+            }
         }
     }
 

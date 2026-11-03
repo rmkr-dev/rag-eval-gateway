@@ -10,7 +10,10 @@ public final class GatewayRoles {
     /** Calls models: {@code /v1/chat/completions}, {@code /v1/models} and its own {@code /v1/calls/{id}}. */
     public static final String CALLER = "ROLE_GATEWAY_CALLER";
 
-    /** Reads every call: {@code /v1/reports/*}, {@code /dashboard} and any {@code /v1/calls/{id}}. */
+    /**
+     * Reads every call: {@code /v1/reports/*}, {@code /dashboard}, any {@code /v1/calls/{id}} and
+     * the eval samples under {@code /v1/eval/*}.
+     */
     public static final String REPORTS = "ROLE_GATEWAY_REPORTS";
 
     private GatewayRoles() {
