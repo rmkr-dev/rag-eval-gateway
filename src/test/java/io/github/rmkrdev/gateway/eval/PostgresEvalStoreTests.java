@@ -27,17 +27,17 @@ class PostgresEvalStoreTests {
     @Autowired
     EvalStore store;
 
-    private static EvalSample at(String id, Instant startedAt) {
+    private static EvalSample at(String id, Instant startedAt, String client) {
         EvalSample s = EvalTestData.sample(id, List.of("Refunds within 30 days.", "Monthly plans excluded."));
-        return new EvalSample(s.id(), startedAt, startedAt.plusSeconds(1), s.client(), s.model(), s.provider(),
+        return new EvalSample(s.id(), startedAt, startedAt.plusSeconds(1), client, s.model(), s.provider(),
                 s.providerModel(), true, s.question(), s.context(), s.answer(), s.messages(), s.tags(), 2, null);
     }
 
     @Test
     void roundTripsScoresAndSummarises() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        EvalSample written = at("gw-pg-eval-1", now);
-        store.write(List.of(written, at("gw-pg-eval-2", now)));
+        EvalSample written = at("gw-pg-eval-1", now, "summary-api");
+        store.write(List.of(written, at("gw-pg-eval-2", now, "summary-api")));
 
         assertThat(store.find("gw-pg-eval-1")).hasValue(written);
         assertThat(store.score("gw-pg-eval-1", 0.5, null, now)).isTrue();
@@ -65,7 +65,8 @@ class PostgresEvalStoreTests {
     @Test
     void purgesOnlySamplesOlderThanTheCutoff() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        store.write(List.of(at("gw-pg-eval-old", now.minus(40, ChronoUnit.DAYS)), at("gw-pg-eval-new", now)));
+        store.write(List.of(at("gw-pg-eval-old", now.minus(40, ChronoUnit.DAYS), "purge-api"),
+                at("gw-pg-eval-new", now, "purge-api")));
 
         assertThat(store.deleteStartedBefore(now.minus(30, ChronoUnit.DAYS))).isGreaterThanOrEqualTo(1);
         assertThat(store.find("gw-pg-eval-old")).isEmpty();
