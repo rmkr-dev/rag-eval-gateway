@@ -8,6 +8,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Eval hooks under `gateway.eval`, off by default: a sample rate by default, per model alias
+  and per client (most specific wins), and tags. Sampled plain and streamed calls are captured
+  after they complete through a bounded queue that drops and counts when full, with the prompt
+  as the provider saw it after PII redaction, the answer, alias, provider, client and call id.
+- `eval_context` on chat requests for the retrieved passages. It is never sent to providers
+  and is dropped unless the call is sampled.
+- `EvalSink` SPI with a `database` sink (`eval_sample` table, Flyway `V3`) and a `file` sink
+  writing JSONL or llm-eval-harness fixture directories.
+- `GET /v1/eval/samples` as JSON, JSONL or a harness fixtures zip, `GET /v1/eval/samples/{id}`,
+  `POST /v1/eval/samples/{id}/scores`, `POST /v1/eval/scores` for a harness JSON report, and
+  `GET /v1/eval/summary` with average scores per alias or client, all behind
+  `Gateway.Reports`. Retention purge (30 days) and optional Micrometer counters. See
+  [docs/eval-hooks.md](docs/eval-hooks.md).
+
 - PII redaction under `gateway.pii` for every prompt message, plain and streamed, before any
   provider is asked. Modes `off`, `mask`, `redact` (`[EMAIL_1]`, same value same placeholder)
   and `block` (`422` problem, `code: pii_detected`, counts by detector), set by default, per

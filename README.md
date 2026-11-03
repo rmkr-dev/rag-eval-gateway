@@ -15,13 +15,15 @@ flowchart LR
     R --> N[Native adapters<br/>Anthropic, Gemini,<br/>AWS Bedrock]
     GW --> DB[(Calls, tokens, cost,<br/>latency)]
     DB --> Rep[Reports API<br/>and dashboard]
+    GW -. sampled calls .-> Ev[(Eval samples)] --> H[llm-eval-harness]
 ```
 
 > Status: early development. Chat calls route through any OpenAI-compatible provider and
 > native Anthropic, Gemini and AWS Bedrock adapters, with retries, fallback and streaming.
 > Every call's cost and latency is stored in the gateway's own database, with reports and a
-> dashboard on top, all behind Entra ID authentication, with per-client budgets, rate limits
-> and PII redaction. Eval hooks land next. See the [roadmap](docs/roadmap.md).
+> dashboard on top, all behind Entra ID authentication, with per-client budgets, rate limits,
+> PII redaction and eval sampling for llm-eval-harness. AKS manifests land next. See the
+> [roadmap](docs/roadmap.md).
 
 ## Run it
 
@@ -164,6 +166,26 @@ gateway:
 Plain and streamed calls are covered, only counts are stored, and provider error details are
 scrubbed before logging. Off until a mode is set. Details, custom detectors and placeholder
 restore are in [docs/pii-redaction.md](docs/pii-redaction.md).
+
+## Eval hooks
+
+Keep a sample of real calls, with the context your app retrieved, and score them with
+[llm-eval-harness](https://github.com/rmkr-dev/llm-eval-harness):
+
+```yaml
+gateway:
+  eval:
+    enabled: true
+    sample-rate: 0.05
+    clients:
+      search-api: 1.0
+```
+
+Send the retrieved passages as `eval_context` in the chat request; they are never sent to a
+provider. Samples are written after the answer completes through a bounded queue, with the
+prompt as the provider saw it after PII redaction. `GET /v1/eval/samples?format=fixtures`
+returns a zip that `llm-eval --fixtures` reads as is, and `POST /v1/eval/scores` takes its JSON
+report back. Off by default. Details are in [docs/eval-hooks.md](docs/eval-hooks.md).
 
 ## Run with Docker
 
