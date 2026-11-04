@@ -8,6 +8,23 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Kustomize manifests for AKS under `deploy/k8s`, no Helm: a base with Deployment, Service,
+  ServiceAccount for Azure workload identity, `SecretProviderClass` for the Key Vault CSI
+  driver, HPA, PodDisruptionBudget and NetworkPolicies (default deny; ingress from the ingress
+  controller's namespace; egress to DNS, Postgres and HTTPS), plus `dev` and `prod` overlays
+  for replicas, HPA bounds, resources, image and config.
+- Key Vault secrets are mounted as files and read as a Spring config tree, so the database
+  password and provider keys never land in a Kubernetes Secret. Non-secret settings come from
+  generated ConfigMaps (`gateway.env`, `gateway.yml`) that roll the pods when they change.
+- Startup, liveness and readiness probes on the actuator health groups, with the database in
+  readiness; non-root, read-only root filesystem, all capabilities dropped; memory request
+  equal to the limit with the heap at 75% of it.
+- `scripts/aks-preflight.sh`: tools, context, namespace, workload identity webhook, Key Vault
+  CSI driver and CRD, render, leftover placeholders, and an optional server dry run.
+- `Deploy to AKS` workflow, manual only, with OIDC login per GitHub environment, preflight,
+  `kubectl apply -k` and a rollout wait. CI renders both overlays, validates them with
+  kubeconform and runs shellcheck. See [docs/deployment-aks.md](docs/deployment-aks.md).
+
 - Eval hooks under `gateway.eval`, off by default: a sample rate by default, per model alias
   and per client (most specific wins), and tags. Sampled plain and streamed calls are captured
   after they complete through a bounded queue that drops and counts when full, with the prompt

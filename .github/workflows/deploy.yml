@@ -1,0 +1,79 @@
+name: Deploy to AKS
+
+# Manual only. Each GitHub environment (dev, prod) holds the Azure ids as variables, not
+# secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AKS_RESOURCE_GROUP,
+# AKS_CLUSTER_NAME and IMAGE_REPOSITORY. Login uses a federated credential for this repository
+# and environment, so no password is stored. See docs/deployment-aks.md.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Overlay and GitHub environment
+        type: choice
+        options: [dev, prod]
+        required: true
+      image-tag:
+        description: Image tag to deploy (empty keeps the overlay's tag)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      OVERLAY: deploy/k8s/overlays/${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-kubectl@v5
+        with:
+          version: v1.34.2
+
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.2.22
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/aks-set-context@v5
+        with:
+          resource-group: ${{ vars.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ vars.AKS_CLUSTER_NAME }}
+          use-kubelogin: 'true'
+
+      # Changes only this runner's checkout; nothing is committed.
+      - name: Set image
+        if: inputs.image-tag != ''
+        env:
+          IMAGE_REPOSITORY: ${{ vars.IMAGE_REPOSITORY }}
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          if [ -z "$IMAGE_REPOSITORY" ]; then echo "IMAGE_REPOSITORY is not set"; exit 1; fi
+          cd "$OVERLAY"
+          kustomize edit set image "rag-eval-gateway=$IMAGE_REPOSITORY:$IMAGE_TAG"
+
+      - name: Preflight
+        run: scripts/aks-preflight.sh "${{ inputs.environment }}" --server-dry-run
+
+      - name: Apply
+        run: kubectl apply -k "$OVERLAY"
+
+      - name: Wait for rollout
+        run: |
+          namespace=$(sed -n 's/^namespace: *//p' "$OVERLAY/kustomization.yaml")
+          kubectl rollout status deployment/rag-eval-gateway -n "$namespace" --timeout=10m
