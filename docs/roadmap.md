@@ -27,8 +27,8 @@ flowchart LR
 | 7 | Per-client token and cost budgets from stored usage, request and token rate limits, `429` with `Retry-After` | Done |
 | 8 | PII redaction for prompts, streams and logs: mask, redact, block, per client and model, custom detectors | Done |
 | 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Done |
-| 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, probes, preflight script, deploy workflow | Next |
-| 11 | Diagram-first docs | Planned |
+| 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, probes, preflight script, deploy workflow | Done |
+| 11 | Diagram-first docs | Next |
 | 12 | Release v1.0.0 | Planned |
 
 After milestone 5, and before Entra auth:
@@ -50,5 +50,8 @@ costs; see [budgets.md](budgets.md). PII redaction (milestone 8) uses the same c
 and model aliases to pick a mode; see [pii-redaction.md](pii-redaction.md). Eval hooks
 (milestone 9) sample calls by the same names, keep prompts only after redaction and export
 fixtures that `llm-eval-harness` runs as is; see [eval-hooks.md](eval-hooks.md).
+AKS deployment (milestone 10) is plain Kustomize, with no Helm chart, and reads every secret
+from Key Vault through workload identity; see [deployment-aks.md](deployment-aks.md). What is
+left is a docs pass and the v1.0.0 release.
 
 Micrometer metrics stay optional. The built-in store is the main path for cost and latency.

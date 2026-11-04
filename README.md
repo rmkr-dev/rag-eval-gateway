@@ -22,8 +22,8 @@ flowchart LR
 > native Anthropic, Gemini and AWS Bedrock adapters, with retries, fallback and streaming.
 > Every call's cost and latency is stored in the gateway's own database, with reports and a
 > dashboard on top, all behind Entra ID authentication, with per-client budgets, rate limits,
-> PII redaction and eval sampling for llm-eval-harness. AKS manifests land next. See the
-> [roadmap](docs/roadmap.md).
+> PII redaction and eval sampling for llm-eval-harness, and Kustomize manifests for AKS. A
+> docs pass and v1.0.0 come next. See the [roadmap](docs/roadmap.md).
 
 ## Run it
 
@@ -197,6 +197,21 @@ docker run -p 8080:8080 -e ENTRA_SECURITY_TENANTID=... -e ENTRA_SECURITY_CLIENTI
 
 The secrets give the build access to GitHub Packages and never end up in the image. Add
 `-e SPRING_PROFILES_ACTIVE=local` instead of the Entra ids to run without auth.
+
+## Deploy to AKS
+
+Kustomize manifests (no Helm) with a `dev` and `prod` overlay. Pods get secrets from Azure Key
+Vault through workload identity, run non-root on a read-only filesystem, and scale with an
+HPA behind a PDB and default-deny network policies:
+
+```bash
+scripts/aks-preflight.sh dev --server-dry-run
+kubectl apply -k deploy/k8s/overlays/dev
+```
+
+The **Deploy to AKS** workflow does the same from GitHub with OIDC login, on demand only.
+Onboarding, configuration and what the manifests enforce are in
+[docs/deployment-aks.md](docs/deployment-aks.md).
 
 ## Configure providers and aliases
 
