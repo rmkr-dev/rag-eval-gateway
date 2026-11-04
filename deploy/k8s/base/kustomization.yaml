@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: rag-eval-gateway
+      app.kubernetes.io/part-of: rag-eval-gateway
+    includeSelectors: false
+    includeTemplates: true
+
+resources:
+  - serviceaccount.yaml
+  - secretproviderclass.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+
+# Environment variables for non-secret settings, and gateway.yml for providers and aliases.
+# The generated names carry a content hash, so a config change rolls the pods.
+configMapGenerator:
+  - name: rag-eval-gateway-env
+    envs:
+      - gateway.env
+  - name: rag-eval-gateway-config
+    files:
+      - gateway.yml

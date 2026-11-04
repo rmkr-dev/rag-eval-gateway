@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: rag-eval-gateway
+
+resources:
+  - ../../base
+
+labels:
+  - pairs:
+      app.kubernetes.io/instance: rag-eval-gateway-prod
+    includeSelectors: false
+
+configMapGenerator:
+  - name: rag-eval-gateway-env
+    behavior: merge
+    envs:
+      - gateway.env
+
+images:
+  - name: rag-eval-gateway
+    newName: REPLACE_ME.azurecr.io/rag-eval-gateway
+    newTag: "1.0.0"
+
+replicas:
+  - name: rag-eval-gateway
+    count: 3
+
+patches:
+  - path: identity.yaml
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: rag-eval-gateway
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 12
+  - target:
+      kind: Deployment
+      name: rag-eval-gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 1
+            memory: 2Gi
+          limits:
+            cpu: "2"
+            memory: 2Gi

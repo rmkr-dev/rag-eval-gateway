@@ -1,0 +1,18 @@
+# Providers and model aliases. Keys are placeholders resolved from the Key Vault files mounted
+# at /mnt/secrets (see secretproviderclass.yaml); the file name is the placeholder name.
+gateway:
+  providers:
+    openrouter:
+      base-url: https://openrouter.ai/api/v1
+      api-key: ${OPENROUTER_API_KEY}
+    anthropic:
+      type: anthropic
+      base-url: https://api.anthropic.com
+      api-key: ${ANTHROPIC_API_KEY}
+  models:
+    chat-default:
+      targets:
+        - provider: openrouter
+          model: meta-llama/llama-3.1-70b-instruct
+        - provider: anthropic
+          model: claude-sonnet-4-5

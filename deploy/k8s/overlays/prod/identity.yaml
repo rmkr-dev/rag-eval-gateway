@@ -1,0 +1,17 @@
+# The managed identity, Key Vault and tenant for prod. These ids are not secrets.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rag-eval-gateway
+  annotations:
+    azure.workload.identity/client-id: REPLACE_ME
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: rag-eval-gateway-kv
+spec:
+  parameters:
+    clientID: REPLACE_ME
+    keyvaultName: REPLACE_ME
+    tenantId: REPLACE_ME
