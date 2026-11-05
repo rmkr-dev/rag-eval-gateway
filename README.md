@@ -18,12 +18,14 @@ flowchart LR
     GW -. sampled calls .-> Ev[(Eval samples)] --> H[llm-eval-harness]
 ```
 
-> Status: early development. Chat calls route through any OpenAI-compatible provider and
-> native Anthropic, Gemini and AWS Bedrock adapters, with retries, fallback and streaming.
-> Every call's cost and latency is stored in the gateway's own database, with reports and a
-> dashboard on top, all behind Entra ID authentication, with per-client budgets, rate limits,
-> PII redaction and eval sampling for llm-eval-harness, and Kustomize manifests for AKS. A
-> docs pass and v1.0.0 come next. See the [roadmap](docs/roadmap.md).
+Start with [Getting started](docs/getting-started.md) for a local run and a first chat call,
+[Architecture](docs/architecture.md) for how a request moves through the gateway, and the
+[docs index](docs/README.md) for every page. Chat calls route through any OpenAI-compatible
+provider and native Anthropic, Gemini and AWS Bedrock adapters, with retries, fallback and
+streaming. Every call's cost and latency is stored in the gateway's own database, with
+reports and a dashboard on top, all behind Entra ID authentication, with per-client budgets,
+rate limits, PII redaction and eval sampling for llm-eval-harness, and Kustomize manifests
+for AKS. [v1.0.0](docs/roadmap.md) is the remaining release cut.
 
 ## Run it
 
@@ -38,6 +40,8 @@ curl localhost:8080/actuator/health
 The starter comes from GitHub Packages, so Maven needs a server `github-entra-security` in
 `~/.m2/settings.xml` with a token that has `read:packages`
 ([how](https://github.com/rmkr-dev/spring-security-jwt-starter/blob/main/docs/releasing.md#installing)).
+Shipped config has no providers. The settings file, a provider alias and the first chat call
+are in [docs/getting-started.md](docs/getting-started.md).
 
 ## Authentication
 

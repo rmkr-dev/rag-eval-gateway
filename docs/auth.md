@@ -32,7 +32,7 @@ on every response.
 | Role | Entra app role | Opens |
 |---|---|---|
 | `GATEWAY_CALLER` | `Gateway.Call` | `POST /v1/chat/completions`, `GET /v1/models`, its own `GET /v1/calls/{id}` |
-| `GATEWAY_REPORTS` | `Gateway.Reports` | `GET /v1/reports/*`, `GET /dashboard`, any `GET /v1/calls/{id}` |
+| `GATEWAY_REPORTS` | `Gateway.Reports` | `GET /v1/reports/*`, `GET /dashboard`, `/v1/eval/*` while eval is on, any `GET /v1/calls/{id}` |
 
 `/actuator/health/**` and `/actuator/info` stay public for probes. A caller that asks for
 someone else's call id gets a `404`, the same as an unknown id.

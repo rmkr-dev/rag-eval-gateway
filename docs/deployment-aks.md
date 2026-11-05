@@ -43,10 +43,21 @@ scripts/aks-preflight.sh
 | `gateway.yml` | `/config/gateway.yml` | Providers, model aliases, any other `gateway.*` setting |
 | Key Vault through `SecretProviderClass` | files in `/mnt/secrets` | Database password and provider API keys |
 
-Spring reads `/mnt/secrets` as a config tree: each file name is a property or placeholder.
-The Key Vault secret `openrouter-api-key` is mounted as `OPENROUTER_API_KEY`, which fills
-`${OPENROUTER_API_KEY}` in `gateway.yml`. To add a provider, add its Key Vault object with an
-`objectAlias` in `secretproviderclass.yaml` and its entry in `gateway.yml`.
+Spring reads `/mnt/secrets` as a config tree
+(`SPRING_CONFIG_IMPORT=optional:configtree:/mnt/secrets/` in `gateway.env`). The file name
+is the property name. The Key Vault secret name and that file name are not the same:
+`objectAlias` in `secretproviderclass.yaml` is the file name.
+
+| Key Vault secret | File in `/mnt/secrets` | Spring sees |
+|---|---|---|
+| `gateway-db-password` | `spring.datasource.password` | the property `spring.datasource.password` |
+| `openrouter-api-key` | `OPENROUTER_API_KEY` | `${OPENROUTER_API_KEY}` in `gateway.yml` |
+| `anthropic-api-key` | `ANTHROPIC_API_KEY` | `${ANTHROPIC_API_KEY}` in `gateway.yml` |
+
+`SPRING_DATASOURCE_URL` and `SPRING_DATASOURCE_USERNAME` come from `gateway.env`. The
+password does not. A file left named `gateway-db-password` would not set
+`spring.datasource.password`. To add a provider, add its Key Vault object with an
+`objectAlias` and its entry in `gateway.yml`.
 
 ConfigMap names carry a content hash, so changing either file rolls the pods. Key Vault values
 are read when a pod starts; restart the deployment after rotating one.
@@ -74,7 +85,9 @@ One time per cluster and environment. Names below are examples.
    ```
 
 3. **Secrets.** Put `gateway-db-password`, `openrouter-api-key` and `anthropic-api-key` (or
-   your providers' keys) in the vault.
+   your providers' keys) in the vault. Those names are the Key Vault objects. The pod mounts
+   them under the aliases in the table above (`spring.datasource.password`,
+   `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`).
 
 4. **Namespace.** `kubectl create namespace rag-eval-gateway-dev`. The manifests do not create
    it, so the namespace and its quotas stay with the platform team.
