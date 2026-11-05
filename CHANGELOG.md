@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Diagram-first docs: [docs/getting-started.md](docs/getting-started.md) for the GitHub
+  Packages Maven server, the `local` profile, a first chat call and where config lives;
+  [docs/architecture.md](docs/architecture.md) for the path from auth through budgets, PII,
+  routing and adapters to tracking and eval; and [docs/README.md](docs/README.md) as the
+  index. The README points at them. Milestone 11 is done; v1.0.0 is what remains.
+
 - Kustomize manifests for AKS under `deploy/k8s`, no Helm: a base with Deployment, Service,
   ServiceAccount for Azure workload identity, `SecretProviderClass` for the Key Vault CSI
   driver, HPA, PodDisruptionBudget and NetworkPolicies (default deny; ingress from the ingress
@@ -144,6 +150,14 @@ All notable changes to this project are documented here. The format follows
 - [docs/providers.md](docs/providers.md) with example configuration and the native mappings.
 
 ### Changed
+
+- [docs/reports.md](docs/reports.md) now shows `gateway.reports.enabled` and
+  `gateway.reports.dashboard.enabled` defaulting to `true`, matching the gateway. Both stay
+  behind `Gateway.Reports`.
+- [docs/deployment-aks.md](docs/deployment-aks.md) names the Key Vault file aliases: the
+  secret `gateway-db-password` is mounted as `spring.datasource.password`, and the provider
+  keys as `OPENROUTER_API_KEY` and `ANTHROPIC_API_KEY`.
+- [docs/auth.md](docs/auth.md) lists the eval endpoints on `Gateway.Reports`.
 
 - `gateway.reports.enabled` and `gateway.reports.dashboard.enabled` default to `true` again,
   now that auth protects them. The dashboard still defaults to UTC.

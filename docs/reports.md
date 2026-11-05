@@ -117,8 +117,8 @@ page with inline CSS and SVG: no scripts, no build step, nothing from a CDN.
 
 | Property | Default | Purpose |
 |---|---|---|
-| `gateway.reports.enabled` | `false` | Serve `/v1/reports/*` (and allow the dashboard) |
-| `gateway.reports.dashboard.enabled` | `false` | Serve `/dashboard`; needs `gateway.reports.enabled` too |
+| `gateway.reports.enabled` | `true` | Serve `/v1/reports/*` (and allow the dashboard) |
+| `gateway.reports.dashboard.enabled` | `true` | Serve `/dashboard`; needs `gateway.reports.enabled` too |
 | `gateway.reports.default-range` | `24h` | Range when no `from` or `range` is given |
 | `gateway.reports.max-range` | `31d` | Longest range one report may cover |
 | `gateway.reports.max-rows` | `500000` | Most calls one report may read |
