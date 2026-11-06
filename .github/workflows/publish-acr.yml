@@ -1,0 +1,131 @@
+name: Publish image to ACR
+
+# Builds the image and pushes it to Azure Container Registry. No registry password is
+# stored. The `acr` GitHub environment holds AZURE_CLIENT_ID, AZURE_TENANT_ID,
+# AZURE_SUBSCRIPTION_ID, ACR_NAME and ACR_LOGIN_SERVER. The identity's federated
+# credential is for this repository and the `acr` environment, and it needs AcrPush.
+# See docs/deployment-aks.md.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Extra image tag to push
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+  packages: read  # spring-security-jwt-starter comes from GitHub Packages
+
+concurrency:
+  group: publish-acr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Build and push
+    runs-on: ubuntu-latest
+    environment: acr
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check ref
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          echo "Run Publish image to ACR from main or a v* tag, not $GITHUB_REF"
+          exit 1
+
+      - name: Check variables
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID ACR_NAME ACR_LOGIN_SERVER; do
+            if [ -z "${!name}" ]; then
+              echo "missing GitHub variable: $name (set it on the acr environment)"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit 1; fi
+          if [ "$ACR_LOGIN_SERVER" != "${ACR_NAME}.azurecr.io" ]; then
+            echo "ACR_LOGIN_SERVER ($ACR_LOGIN_SERVER) does not match ACR_NAME ($ACR_NAME)"
+            exit 1
+          fi
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to ACR and push
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+          EXTRA_TAG: ${{ inputs.tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${ACR_NAME:?ACR_NAME is not set}"
+          : "${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is not set}"
+          if [ "$ACR_LOGIN_SERVER" != "${ACR_NAME}.azurecr.io" ]; then
+            echo "ACR_LOGIN_SERVER ($ACR_LOGIN_SERVER) does not match ACR_NAME ($ACR_NAME)"
+            exit 1
+          fi
+
+          az acr login --name "$ACR_NAME"
+
+          cat > "$RUNNER_TEMP/maven-settings.xml" <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>github-entra-security</id>
+                <username>${GITHUB_ACTOR}</username>
+                <password>\${env.GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+          image="$ACR_LOGIN_SERVER/rag-eval-gateway"
+          docker build --tag "$image:build" \
+            --secret id=maven-settings,src="$RUNNER_TEMP/maven-settings.xml" \
+            --secret id=github-token,env=GITHUB_TOKEN .
+
+          short_sha="${GITHUB_SHA::7}"
+          tags=("$short_sha")
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            tags+=("main")
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tags+=("${GITHUB_REF_NAME}")
+          fi
+          if [ -n "${EXTRA_TAG:-}" ]; then
+            tags+=("$EXTRA_TAG")
+          fi
+
+          valid='^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'
+          declare -A seen=()
+          for tag in "${tags[@]}"; do
+            if ! [[ "$tag" =~ $valid ]]; then
+              echo "refusing image tag: $tag"
+              exit 1
+            fi
+            if [[ -n ${seen[$tag]+x} ]]; then
+              continue
+            fi
+            seen[$tag]=1
+            docker tag "$image:build" "$image:$tag"
+            docker push "$image:$tag"
+            echo "pushed $image:$tag"
+          done

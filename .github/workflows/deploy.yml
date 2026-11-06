@@ -2,8 +2,10 @@ name: Deploy to AKS
 
 # Manual only. Each GitHub environment (dev, prod) holds the Azure ids as variables, not
 # secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AKS_RESOURCE_GROUP,
-# AKS_CLUSTER_NAME and IMAGE_REPOSITORY. Login uses a federated credential for this repository
-# and environment, so no password is stored. See docs/deployment-aks.md.
+# AKS_CLUSTER_NAME and IMAGE_REPOSITORY. IMAGE_REPOSITORY is the image published by
+# publish-acr.yml, for example myacr.azurecr.io/rag-eval-gateway. Login uses a federated
+# credential for this repository and environment, so no password is stored. See
+# docs/deployment-aks.md.
 on:
   workflow_dispatch:
     inputs:

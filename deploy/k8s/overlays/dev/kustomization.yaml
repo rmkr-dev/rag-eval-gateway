@@ -28,6 +28,12 @@ replicas:
 
 patches:
   - path: identity.yaml
+  - path: ingress.yaml
+    target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: rag-eval-gateway
   - target:
       kind: HorizontalPodAutoscaler
       name: rag-eval-gateway

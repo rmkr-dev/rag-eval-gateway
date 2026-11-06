@@ -39,9 +39,10 @@ A call that is refused (no token, wrong role, over budget, over rate, blocked fo
 unknown alias) never reaches a provider. `"stream": true` follows the same order until the
 first token. After that the answer stays with the provider that produced it.
 
-On AKS the process is the same binary. Non-secret settings come from a ConfigMap, and the
-database password and provider keys come from Key Vault through workload identity. The
-manifests are Kustomize only, with no Helm chart. See
+On AKS the process is the same binary. Traffic comes in through an ingress-nginx Ingress.
+Non-secret settings come from a ConfigMap, and the database password and provider keys come
+from Key Vault through workload identity. The manifests are Kustomize only, with no Helm
+chart, and the image is published to Azure Container Registry. See
 [deployment-aks.md](deployment-aks.md).
 
 Milestones through this docs pass are done. v1.0.0 is what remains. See

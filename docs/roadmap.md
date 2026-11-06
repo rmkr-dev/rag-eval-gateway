@@ -27,7 +27,7 @@ flowchart LR
 | 7 | Per-client token and cost budgets from stored usage, request and token rate limits, `429` with `Retry-After` | Done |
 | 8 | PII redaction for prompts, streams and logs: mask, redact, block, per client and model, custom detectors | Done |
 | 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Done |
-| 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, probes, preflight script, deploy workflow | Done |
+| 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, ingress-nginx Ingress, ACR publish workflow, probes, preflight script, deploy workflow | Done |
 | 11 | Diagram-first docs: getting started, architecture overview, docs index | Done |
 | 12 | Release v1.0.0 | Planned |
 
@@ -50,9 +50,11 @@ costs; see [budgets.md](budgets.md). PII redaction (milestone 8) uses the same c
 and model aliases to pick a mode; see [pii-redaction.md](pii-redaction.md). Eval hooks
 (milestone 9) sample calls by the same names, keep prompts only after redaction and export
 fixtures that `llm-eval-harness` runs as is; see [eval-hooks.md](eval-hooks.md).
-AKS deployment (milestone 10) is plain Kustomize, with no Helm chart, and reads every secret
-from Key Vault through workload identity; see [deployment-aks.md](deployment-aks.md). The
-docs pass is [getting-started.md](getting-started.md), [architecture.md](architecture.md)
-and the [index](README.md). What is left is the v1.0.0 release.
+AKS deployment (milestone 10) is plain Kustomize, with no Helm chart. An ingress-nginx
+Ingress is the front door, and a workflow publishes the image to Azure Container Registry
+with OIDC. Pods read every secret from Key Vault through workload identity; see
+[deployment-aks.md](deployment-aks.md). The docs pass is
+[getting-started.md](getting-started.md), [architecture.md](architecture.md) and the
+[index](README.md). What is left is the v1.0.0 release.
 
 Micrometer metrics stay optional. The built-in store is the main path for cost and latency.

@@ -71,6 +71,24 @@ if grep -q 'REPLACE_ME' "$rendered"; then
 else
   ok "no placeholders left"
 fi
+# From the Ingress document only, so a host or secret in some other resource does not count.
+ingress=$(awk '
+  /^---$/ { if (capture) exit }
+  /^kind: Ingress$/ { capture=1 }
+  capture { print }
+' "$rendered")
+tls_secret=$(printf '%s\n' "$ingress" | awk '/^[[:space:]]*secretName:/ { print $2; exit }')
+if [[ -z $ingress ]]; then
+  fail "no Ingress in the render"
+elif ! grep -q 'ingressClassName: nginx' <<<"$ingress"; then
+  fail "Ingress class is not nginx"
+elif ! grep -Eq 'host: [^[:space:]]+' <<<"$ingress"; then
+  fail "Ingress has no host"
+elif [[ -z $tls_secret ]]; then
+  fail "Ingress has no TLS secret"
+else
+  ok "Ingress class nginx, host set, TLS secret $tls_secret"
+fi
 if [[ -z $namespace ]]; then
   namespace=$(sed -n 's/^namespace: *//p' "$overlay/kustomization.yaml" | head -n 1)
 fi
@@ -99,6 +117,23 @@ if kubectl get namespace "$namespace" >/dev/null 2>&1; then
   ok "namespace $namespace exists"
 else
   fail "namespace $namespace not found (kubectl create namespace $namespace)"
+fi
+
+echo "Ingress"
+if kubectl get namespace ingress-nginx >/dev/null 2>&1; then
+  ok "namespace ingress-nginx"
+else
+  fail "namespace ingress-nginx not found (install ingress-nginx; the NetworkPolicy allows that namespace)"
+fi
+if kubectl get ingressclass nginx >/dev/null 2>&1; then
+  ok "IngressClass nginx"
+else
+  fail "IngressClass nginx not found"
+fi
+if [[ -n ${tls_secret:-} ]] && kubectl get secret "$tls_secret" -n "$namespace" >/dev/null 2>&1; then
+  ok "TLS secret $tls_secret"
+else
+  fail "TLS secret ${tls_secret:-unset} not found in $namespace (kubectl create secret tls ...)"
 fi
 
 echo "Azure add-ons"

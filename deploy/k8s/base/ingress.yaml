@@ -1,0 +1,27 @@
+# Front door for the Service. The overlay replaces the host and the TLS secret name.
+# Chat answers are server-sent events, so buffering is off and the read timeout is long.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rag-eval-gateway
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - REPLACE_ME
+      secretName: REPLACE_ME
+  rules:
+    - host: REPLACE_ME
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rag-eval-gateway
+                port:
+                  name: http
