@@ -1,0 +1,10 @@
+# Host and TLS secret for prod. Both stay placeholders until filled in.
+- op: replace
+  path: /spec/rules/0/host
+  value: gateway.REPLACE_ME
+- op: replace
+  path: /spec/tls/0/hosts/0
+  value: gateway.REPLACE_ME
+- op: replace
+  path: /spec/tls/0/secretName
+  value: REPLACE_ME

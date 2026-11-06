@@ -159,6 +159,6 @@ and `/dashboard`; with auth on they need `Gateway.Reports`. See [reports.md](rep
 | [providers.md](providers.md) | Adapters, streaming, and Bedrock signing |
 | [routing.md](routing.md) | Retries, fallback, and `fallback-on-bad-request` |
 | [tracking.md](tracking.md) | Prices, storage, and call lookup |
-| [deployment-aks.md](deployment-aks.md) | Kustomize on AKS |
+| [deployment-aks.md](deployment-aks.md) | Kustomize on AKS, Ingress and ACR |
 | [architecture.md](architecture.md) | The same call, as one picture |
 | [README.md](README.md) | The rest of the docs |

@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- ingress-nginx Ingress in the Kustomize base, class `nginx`, path `/` to Service port
+  `http`. Overlays set the host (`gateway-dev.REPLACE_ME` in dev, `gateway.REPLACE_ME` in
+  prod) and the TLS secret name (`REPLACE_ME`). Proxy buffering is off so streamed chats
+  pass through. The preflight checks the Ingress and still flags leftover placeholders.
+  See [docs/deployment-aks.md](docs/deployment-aks.md).
+- `Publish image to ACR` workflow. A push to `main` publishes tags `main` and the short
+  SHA; a `v*` tag publishes that version as well; `workflow_dispatch` can add a tag. Login
+  is Azure OIDC against the `acr` environment, and the identity needs AcrPush. No registry
+  password is stored. The overlays already point at `REPLACE_ME.azurecr.io/rag-eval-gateway`,
+  which is what `IMAGE_REPOSITORY` should be once the registry name is filled in.
+
 - Diagram-first docs: [docs/getting-started.md](docs/getting-started.md) for the GitHub
   Packages Maven server, the `local` profile, a first chat call and where config lives;
   [docs/architecture.md](docs/architecture.md) for the path from auth through budgets, PII,

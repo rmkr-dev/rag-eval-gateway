@@ -25,7 +25,8 @@ provider and native Anthropic, Gemini and AWS Bedrock adapters, with retries, fa
 streaming. Every call's cost and latency is stored in the gateway's own database, with
 reports and a dashboard on top, all behind Entra ID authentication, with per-client budgets,
 rate limits, PII redaction and eval sampling for llm-eval-harness, and Kustomize manifests
-for AKS. [v1.0.0](docs/roadmap.md) is the remaining release cut.
+for AKS with an ingress-nginx Ingress and an ACR publish workflow.
+[v1.0.0](docs/roadmap.md) is the remaining release cut.
 
 ## Run it
 
@@ -204,17 +205,20 @@ The secrets give the build access to GitHub Packages and never end up in the ima
 
 ## Deploy to AKS
 
-Kustomize manifests (no Helm) with a `dev` and `prod` overlay. Pods get secrets from Azure Key
-Vault through workload identity, run non-root on a read-only filesystem, and scale with an
-HPA behind a PDB and default-deny network policies:
+Kustomize manifests (no Helm) with a `dev` and `prod` overlay. An ingress-nginx Ingress is
+the front door. Pods get secrets from Azure Key Vault through workload identity, run non-root
+on a read-only filesystem, and scale with an HPA behind a PDB and default-deny network
+policies:
 
 ```bash
 scripts/aks-preflight.sh dev --server-dry-run
 kubectl apply -k deploy/k8s/overlays/dev
 ```
 
-The **Deploy to AKS** workflow does the same from GitHub with OIDC login, on demand only.
-Onboarding, configuration and what the manifests enforce are in
+**Publish image to ACR** builds the image on each push to `main` (tags `main` and the short
+SHA) and on `v*` tags, and pushes it to Azure Container Registry with OIDC. No registry
+password is stored. **Deploy to AKS** applies an overlay from GitHub with OIDC, on demand
+only. Onboarding, the Ingress host and TLS placeholders, and the GitHub variables are in
 [docs/deployment-aks.md](docs/deployment-aks.md).
 
 ## Configure providers and aliases
