@@ -17,7 +17,7 @@ One page per topic. The [repository README](../README.md) is the short front doo
 | [pii-redaction.md](pii-redaction.md) | Mask, redact or block personal data in prompts before a provider sees them. |
 | [eval-hooks.md](eval-hooks.md) | Sample real calls and score them with llm-eval-harness. Off by default. |
 | [deployment-aks.md](deployment-aks.md) | Kustomize on AKS: ingress-nginx, ACR, workload identity and Key Vault. No Helm chart. |
-| [roadmap.md](roadmap.md) | Milestones 1 to 11 are done. v1.0.0 is planned. |
+| [roadmap.md](roadmap.md) | Milestones 1 to 12 are done. v1.0.0 is released. |
 
 The picture on the reports page is [images/dashboard.png](images/dashboard.png).
 

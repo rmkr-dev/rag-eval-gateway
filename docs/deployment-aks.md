@@ -187,9 +187,10 @@ with `GITHUB_TOKEN` as a BuildKit secret. The token is not stored in the image.
 
 From the Actions tab run **Deploy to AKS** with `dev` or `prod` and, optionally, an image
 tag. It logs in with OIDC, runs the preflight with a server dry run, applies the overlay and
-waits for the rollout. It never runs on push. Use a tag the publish workflow pushed (`main`,
-a short SHA, or a `v*` tag). The prod overlay's image tag stays `1.0.0` until that release
-is cut, so a prod deploy before then should pass one of those tags.
+waits for the rollout. It never runs on push. Leave the image tag empty to keep the overlay's
+tag. Dev stays on `main`. Prod stays on `v1.0.0`, the tag **Publish image to ACR** pushes
+for git tag `v1.0.0` together with the seven-character SHA. Pass a tag only to select another
+tag that workflow pushes (`main`, a short SHA, or a `v*` tag).
 
 From a workstation with access to the cluster:
 
