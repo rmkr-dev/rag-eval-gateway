@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-07
+
+First release. One API in front of OpenAI-compatible providers and native
+Anthropic, Gemini and AWS Bedrock adapters, with routing, fallback and
+streaming. Cost and latency are stored per call, with reports and a dashboard,
+Entra ID authentication, per-client budgets and rate limits, PII redaction,
+eval sampling for llm-eval-harness, and Kustomize manifests for AKS with an
+ingress-nginx Ingress and an ACR publish workflow.
+
 ### Added
 
 - ingress-nginx Ingress in the Kustomize base, class `nginx`, path `/` to Service port
@@ -23,7 +32,7 @@ All notable changes to this project are documented here. The format follows
   Packages Maven server, the `local` profile, a first chat call and where config lives;
   [docs/architecture.md](docs/architecture.md) for the path from auth through budgets, PII,
   routing and adapters to tracking and eval; and [docs/README.md](docs/README.md) as the
-  index. The README points at them. Milestone 11 is done; v1.0.0 is what remains.
+  index. The README points at them.
 
 - Kustomize manifests for AKS under `deploy/k8s`, no Helm: a base with Deployment, Service,
   ServiceAccount for Azure workload identity, `SecretProviderClass` for the Key Vault CSI

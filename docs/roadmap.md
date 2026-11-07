@@ -16,6 +16,8 @@ flowchart LR
     K --> L[12 v1.0.0]
 ```
 
+The last node is milestone 12. It is done.
+
 | # | Milestone | Status |
 |---|-----------|--------|
 | 1 | Skeleton, unified API contract, provider and alias config, CI, CodeQL, Docker image | Done |
@@ -29,7 +31,7 @@ flowchart LR
 | 9 | Faithfulness and relevance sampling hooks compatible with `llm-eval-harness` | Done |
 | 10 | Kustomize base with dev and prod overlays: workload identity, Key Vault CSI, HPA, PDB, NetworkPolicy, ingress-nginx Ingress, ACR publish workflow, probes, preflight script, deploy workflow | Done |
 | 11 | Diagram-first docs: getting started, architecture overview, docs index | Done |
-| 12 | Release v1.0.0 | Planned |
+| 12 | Release v1.0.0 | Done |
 
 After milestone 5, and before Entra auth:
 
@@ -55,6 +57,7 @@ Ingress is the front door, and a workflow publishes the image to Azure Container
 with OIDC. Pods read every secret from Key Vault through workload identity; see
 [deployment-aks.md](deployment-aks.md). The docs pass is
 [getting-started.md](getting-started.md), [architecture.md](architecture.md) and the
-[index](README.md). What is left is the v1.0.0 release.
+[index](README.md). Milestone 12 is done: v1.0.0 is released. See the
+[changelog](../CHANGELOG.md).
 
 Micrometer metrics stay optional. The built-in store is the main path for cost and latency.

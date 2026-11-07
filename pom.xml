@@ -13,7 +13,7 @@
 
     <groupId>io.github.rmkr-dev</groupId>
     <artifactId>rag-eval-gateway</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>rag-eval-gateway</name>
     <description>Provider-agnostic LLM gateway with routing, cost and latency tracking, budgets and PII redaction</description>
     <url>https://github.com/rmkr-dev/rag-eval-gateway</url>

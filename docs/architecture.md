@@ -45,5 +45,5 @@ from Key Vault through workload identity. The manifests are Kustomize only, with
 chart, and the image is published to Azure Container Registry. See
 [deployment-aks.md](deployment-aks.md).
 
-Milestones through this docs pass are done. v1.0.0 is what remains. See
+Milestones 1 to 12 are done, and v1.0.0 is released. See
 [roadmap.md](roadmap.md).

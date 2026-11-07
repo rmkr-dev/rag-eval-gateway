@@ -26,7 +26,7 @@ streaming. Every call's cost and latency is stored in the gateway's own database
 reports and a dashboard on top, all behind Entra ID authentication, with per-client budgets,
 rate limits, PII redaction and eval sampling for llm-eval-harness, and Kustomize manifests
 for AKS with an ingress-nginx Ingress and an ACR publish workflow.
-[v1.0.0](docs/roadmap.md) is the remaining release cut.
+[v1.0.0](CHANGELOG.md) is released.
 
 ## Run it
 
