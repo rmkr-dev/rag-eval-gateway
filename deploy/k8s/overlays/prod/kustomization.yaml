@@ -20,7 +20,7 @@ configMapGenerator:
 images:
   - name: rag-eval-gateway
     newName: REPLACE_ME.azurecr.io/rag-eval-gateway
-    newTag: "1.0.0"
+    newTag: "v1.0.0"
 
 replicas:
   - name: rag-eval-gateway
